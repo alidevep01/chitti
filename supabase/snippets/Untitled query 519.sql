@@ -1,0 +1,1 @@
+select public.bootstrap_admin('mufaddaltradingcorp@gmail.com');

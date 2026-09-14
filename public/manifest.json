@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "Chitti",
+  "short_name": "Chitti",
+  "description": "A private, invitation-only family chitti tracker.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffaf2",
+  "theme_color": "#9b3b2c",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

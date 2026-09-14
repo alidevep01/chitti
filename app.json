@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Chitti",
+    "slug": "chitti",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "chitti",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Chitti to choose profile and payment proof photos."
+        }
+      ]
+    ],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "android": {
+      "package": "com.chitti.family"
+    },
+    "ios": {
+      "bundleIdentifier": "com.chitti.family",
+      "supportsTablet": true
+    }
+  }
+}
