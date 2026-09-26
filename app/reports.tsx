@@ -2,16 +2,17 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Avatar, Button, Card, Divider, ProgressBar, Searchbar, Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Button, Card, Divider, ProgressBar, Searchbar, Text, useTheme } from 'react-native-paper';
 
 import { EmptyState } from '@/components/EmptyState';
 import { Screen } from '@/components/Screen';
 import { StatusPill } from '@/components/StatusPill';
+import { UserAvatar } from '@/components/UserAvatar';
 import { useApp } from '@/data/AppProvider';
 import { buildDemoReports } from '@/domain/reports';
 import type { UserReliabilityReport } from '@/domain/types';
 import { env } from '@/lib/env';
-import { formatDate, formatINR, initials } from '@/lib/format';
+import { formatDate, formatINR } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
 export default function ReportsScreen() {
@@ -65,7 +66,7 @@ export default function ReportsScreen() {
           <Card key={report.userId} mode="elevated">
             <Card.Content style={styles.section}>
               <View style={styles.personRow}>
-                {report.avatarUri ? <Avatar.Image size={52} source={{ uri: report.avatarUri }} /> : <Avatar.Text size={52} label={initials(report.name)} />}
+                <UserAvatar name={report.name} uri={report.avatarUri} size={52} />
                 <View style={styles.grow}>
                   <Text variant="titleLarge" style={styles.heading}>{report.name}{report.userId === currentUser.id ? ' · You' : ''}</Text>
                   {currentUser.role === 'admin' ? <Text>{report.email} · {report.phone || 'No phone'}</Text> : <Text>{report.chittiCount} chittis in your history</Text>}
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
   progressTrack: { height: 10, width: '100%' },
   progress: { height: 10, borderRadius: 8 },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  metric: { minWidth: 105, flexGrow: 1, padding: 12, borderRadius: 12, backgroundColor: '#fff8f6' },
+  metric: { minWidth: 105, flexGrow: 1, padding: 12, borderRadius: 12, backgroundColor: '#f2f6f2' },
   amounts: { gap: 5 },
   historyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },

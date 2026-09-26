@@ -3,13 +3,14 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { StyleSheet, View } from 'react-native';
-import { Avatar, Button, Card, Divider, HelperText, Searchbar, Snackbar, Text, TextInput } from 'react-native-paper';
+import { Button, Card, Divider, HelperText, Searchbar, Snackbar, Text, TextInput } from 'react-native-paper';
 import { DatePickerModal, en, registerTranslation } from 'react-native-paper-dates';
 import { z } from 'zod';
 
 import { Screen } from '@/components/Screen';
+import { UserAvatar } from '@/components/UserAvatar';
 import { useApp } from '@/data/AppProvider';
-import { addMonthsClamped, formatDate, formatINR, initials, toPaise } from '@/lib/format';
+import { addMonthsClamped, formatDate, formatINR, toPaise } from '@/lib/format';
 
 registerTranslation('en', en);
 
@@ -163,7 +164,7 @@ export default function NewChittiScreen() {
         <Text>People invited to an earlier chitti are remembered automatically. Tap Add instead of entering their information again.</Text>
         {savedContacts.length > 5 ? <Searchbar placeholder="Search saved members" value={contactSearch} onChangeText={setContactSearch} /> : null}
         {visibleContacts.map((contact, index) => <View key={contact.email}>{index ? <Divider style={styles.contactDivider} /> : null}<View style={styles.contactRow}>
-          {contact.avatarUri ? <Avatar.Image size={42} source={{ uri: contact.avatarUri }} /> : <Avatar.Text size={42} label={initials(contact.name)} />}
+          <UserAvatar name={contact.name} uri={contact.avatarUri} size={42} />
           <View style={styles.contactDetails}><Text variant="titleMedium">{contact.name}</Text><Text>{contact.email}</Text><Text variant="bodySmall">{contact.phone} · invited {contact.timesInvited} {contact.timesInvited === 1 ? 'time' : 'times'}</Text></View>
           <Button mode={selectedEmails.has(contact.email.toLowerCase()) ? 'contained-tonal' : 'outlined'} disabled={selectedEmails.has(contact.email.toLowerCase())} icon={selectedEmails.has(contact.email.toLowerCase()) ? 'check' : 'account-plus'} onPress={() => addSavedContact(contact)}>{selectedEmails.has(contact.email.toLowerCase()) ? 'Added' : 'Add'}</Button>
         </View></View>)}
@@ -211,7 +212,7 @@ export default function NewChittiScreen() {
 const styles = StyleSheet.create({
   section: { gap: 14 }, info: { gap: 5 }, heading: { fontWeight: '700' },
   twoColumns: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, column: { flex: 1, minWidth: 220 },
-  calculation: { backgroundColor: '#fff4dc' }, amount: { fontWeight: '800', color: '#9b3b2c' },
+  calculation: { backgroundColor: '#e5ede6' }, amount: { fontWeight: '800', color: '#2f4738' },
   schedule: { gap: 12 }, dateButton: { minHeight: 48 }, dateSummary: { gap: 4, paddingTop: 4 },
   invite: { gap: 8, paddingTop: 8 }, submit: { minHeight: 54 },
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }, contactDetails: { flex: 1, minWidth: 190 }, contactDivider: { marginVertical: 10 },

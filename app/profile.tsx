@@ -2,13 +2,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Avatar, Button, Card, Divider, Snackbar, Text, TextInput } from 'react-native-paper';
+import { Button, Card, Divider, Snackbar, Text, TextInput } from 'react-native-paper';
 
 import { Screen } from '@/components/Screen';
+import { UserAvatar } from '@/components/UserAvatar';
 import { useApp } from '@/data/AppProvider';
 import { demoUsers } from '@/data/demo';
 import { exportChittiData } from '@/lib/exportData';
-import { initials } from '@/lib/format';
 
 export default function ProfileScreen() {
   const { currentUser, chittis, updateProfile, signOut, demoMode, switchDemoUser } = useApp();
@@ -47,7 +47,7 @@ function ProfileForm({ currentUser, chittis, updateProfile, signOut, demoMode, s
   return (
     <Screen title="Profile" back>
       <Card mode="elevated"><Card.Content style={styles.content}>
-        <View style={styles.avatarWrap}>{avatarUri ? <Avatar.Image size={94} source={{ uri: avatarUri }} /> : <Avatar.Text size={94} label={initials(name)} />}<Button icon="camera" onPress={() => void choosePhoto()}>Choose photo</Button></View>
+        <View style={styles.avatarWrap}><UserAvatar name={name} uri={avatarUri} size={94} /><Button icon="camera" onPress={() => void choosePhoto()}>Choose photo</Button></View>
         <TextInput mode="outlined" label="Full name" value={name} onChangeText={setName} />
         <TextInput mode="outlined" label="Phone number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
         <TextInput mode="outlined" label="Google email" value={currentUser.email} disabled />
@@ -57,10 +57,10 @@ function ProfileForm({ currentUser, chittis, updateProfile, signOut, demoMode, s
 
       {demoMode ? <Card mode="contained" style={styles.demo}><Card.Content style={styles.content}><Text variant="titleLarge">Preview another member</Text><Text>Use these accounts to test member-only screens and approvals.</Text>{demoUsers.map((user, index) => <View key={user.id}>{index ? <Divider /> : null}<View style={styles.userRow}><View><Text variant="titleMedium">{user.name}</Text><Text>{user.role === 'admin' ? 'Administrator' : 'Member'}</Text></View><Button disabled={user.id === currentUser.id} onPress={() => { switchDemoUser(user.id); setMessage(`Now previewing as ${user.name}`); }}>Preview</Button></View></View>)}</Card.Content></Card> : null}
 
-      <Card mode="outlined"><Card.Content style={styles.content}><Text variant="titleMedium">Account and data</Text><Button mode="outlined" icon="file-chart-outline" contentStyle={styles.button} onPress={() => router.push('/reports')}>{currentUser.role === 'admin' ? 'All member reports' : 'My payment report'}</Button>{currentUser.role === 'admin' ? <Button mode="outlined" icon="download" contentStyle={styles.button} onPress={() => void exportChittiData(chittis).then(setMessage).catch((error) => setMessage(error.message))}>Export private data</Button> : null}<Button mode="text" icon="shield-account-outline" onPress={() => router.push('/privacy')}>Privacy and safety</Button><Button mode="outlined" textColor="#ba1a1a" icon="logout" contentStyle={styles.button} onPress={() => void logout()}>Sign out</Button></Card.Content></Card>
+      <Card mode="outlined"><Card.Content style={styles.content}><Text variant="titleMedium">Account and data</Text><Button mode="outlined" icon="file-chart-outline" contentStyle={styles.button} onPress={() => router.push('/reports')}>{currentUser.role === 'admin' ? 'All member reports' : 'My payment report'}</Button>{currentUser.role === 'admin' ? <Button mode="outlined" icon="download" contentStyle={styles.button} onPress={() => void exportChittiData(chittis).then(setMessage).catch((error) => setMessage(error.message))}>Export private data</Button> : null}<Button mode="text" icon="shield-account-outline" onPress={() => router.push('/privacy')}>Privacy and safety</Button><Button mode="outlined" textColor="#3f5b49" icon="logout" contentStyle={styles.button} onPress={() => void logout()}>Sign out</Button></Card.Content></Card>
       <Snackbar visible={Boolean(message)} onDismiss={() => setMessage('')}>{message}</Snackbar>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({ content: { gap: 14 }, avatarWrap: { alignItems: 'center', gap: 6 }, button: { minHeight: 50 }, demo: { backgroundColor: '#fff4dc' }, userRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 } });
+const styles = StyleSheet.create({ content: { gap: 14 }, avatarWrap: { alignItems: 'center', gap: 6 }, button: { minHeight: 50 }, demo: { backgroundColor: '#e5ede6' }, userRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 } });

@@ -1,14 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Avatar, Button, Card, Dialog, Divider, Icon, Portal, ProgressBar, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
+import { Button, Card, Dialog, Divider, Icon, Portal, ProgressBar, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
 
 import { EmptyState } from '@/components/EmptyState';
 import { Screen } from '@/components/Screen';
 import { StatusPill } from '@/components/StatusPill';
+import { UserAvatar } from '@/components/UserAvatar';
 import { useApp } from '@/data/AppProvider';
 import { useChittiPresence } from '@/hooks/useChittiPresence';
-import { initials } from '@/lib/format';
 
 export default function ShuffleScreen() {
   const theme = useTheme();
@@ -66,7 +66,7 @@ export default function ShuffleScreen() {
       {chitti.status === 'awaiting_approval' ? <>
         <Card mode="elevated"><Card.Content style={styles.section}>
           <View style={styles.rowBetween}><Text variant="titleLarge" style={styles.heading}>Payout order</Text><StatusPill status={revealed >= chitti.memberCount ? 'awaiting_approval' : 'shuffle_scheduled'} /></View>
-          {ordered.slice(0, Math.max(1, revealed)).map((member, index) => <View key={member.id}>{index ? <Divider style={styles.divider} /> : null}<View style={styles.rowBetween}><View style={styles.person}><View style={[styles.position, { backgroundColor: index === 0 ? theme.colors.secondaryContainer : theme.colors.surfaceVariant }]}><Text variant="titleLarge" style={styles.heading}>{index + 1}</Text></View><Avatar.Text size={42} label={initials(member.name)} /><View><Text variant="titleMedium">{member.name}</Text><Text>{index === 0 ? 'Administrator’s fixed month' : `Receives in month ${index + 1}`}</Text></View></View>{revealed >= chitti.memberCount ? <StatusPill status={member.approval} /> : null}</View></View>)}
+          {ordered.slice(0, Math.max(1, revealed)).map((member, index) => <View key={member.id}>{index ? <Divider style={styles.divider} /> : null}<View style={styles.rowBetween}><View style={styles.person}><View style={[styles.position, { backgroundColor: index === 0 ? theme.colors.secondaryContainer : theme.colors.surfaceVariant }]}><Text variant="titleLarge" style={styles.heading}>{index + 1}</Text></View><UserAvatar name={member.name} uri={member.avatarUri} size={42} /><View><Text variant="titleMedium">{member.name}</Text><Text>{index === 0 ? 'Administrator’s fixed month' : `Receives in month ${index + 1}`}</Text></View></View>{revealed >= chitti.memberCount ? <StatusPill status={member.approval} /> : null}</View></View>)}
           {revealed < chitti.memberCount ? <><View style={styles.progressTrack}><ProgressBar indeterminate color={theme.colors.primary} style={styles.progress} /></View><Text style={styles.center}>Revealing the next member…</Text></> : null}
           {revealed >= chitti.memberCount ? <View style={styles.hash}><Icon source="shield-check-outline" size={20} /><Text variant="bodySmall">Result saved before reveal · {chitti.resultHash}</Text></View> : null}
         </Card.Content></Card>
@@ -97,12 +97,12 @@ export default function ShuffleScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: { alignItems: 'center', gap: 10 }, shuffleIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#fffaf2', alignItems: 'center', justifyContent: 'center' },
+  hero: { alignItems: 'center', gap: 10 }, shuffleIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
   center: { textAlign: 'center' }, section: { gap: 14 }, heading: { fontWeight: '700' }, bigButton: { minHeight: 54 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 11 }, position: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   divider: { marginVertical: 10 }, hash: { backgroundColor: '#eef5e9', padding: 12, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  live: { flexDirection: 'row', alignItems: 'center', gap: 7 }, liveDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#2e7d32' },
+  live: { flexDirection: 'row', alignItems: 'center', gap: 7 }, liveDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#5e7464' },
   progress: { height: 10, borderRadius: 10 }, voteButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
   progressTrack: { height: 10, width: '100%' },
   dialog: { width: '92%', maxWidth: 480, alignSelf: 'center' },

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { Button, Card, Icon, Snackbar, Text, useTheme } from 'react-native-paper';
 
 import { useApp } from '@/data/AppProvider';
@@ -18,7 +18,7 @@ export default function SignInScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <View style={styles.hero}>
-        <View style={[styles.logo, { backgroundColor: theme.colors.primary }]}><Text style={styles.logoText}>ಚಿ</Text></View>
+        <Image source={require('../assets/branding/chitti-community-mascot.png')} style={styles.logo} accessibilityLabel="Chitti community savings mascot" />
         <Text variant="displaySmall" style={styles.title}>Chitti</Text>
         <Text variant="titleMedium" style={styles.subtitle}>Save together. Plan with confidence.</Text>
       </View>
@@ -49,16 +49,15 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 26 },
   hero: { alignItems: 'center', gap: 8 },
-  logo: { width: 74, height: 74, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  logoText: { color: '#fff', fontSize: 34, fontWeight: '800' },
-  title: { fontWeight: '800', color: '#502018' },
-  subtitle: { color: '#735b2e', textAlign: 'center' },
+  logo: { width: 150, height: 150, resizeMode: 'contain' },
+  title: { fontWeight: '800', color: '#2f4738' },
+  subtitle: { color: '#52645a', textAlign: 'center' },
   card: { width: '100%', maxWidth: 460 },
   cardContent: { padding: 12, gap: 18 },
   center: { textAlign: 'center' },
   button: { minHeight: 50 },
-  demoBox: { backgroundColor: '#fff4dc', borderRadius: 16, padding: 16, gap: 10 },
+  demoBox: { backgroundColor: '#e5ede6', borderRadius: 16, padding: 16, gap: 10 },
   safety: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   safetyText: { flex: 1, color: '#4d6546' },
-  footer: { color: '#756b67' },
+  footer: { color: '#52645a' },
 });

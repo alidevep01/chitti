@@ -4,7 +4,7 @@ import { Button, Icon, Text } from 'react-native-paper';
 export function EmptyState({ icon, title, message, action, onAction }: { icon: string; title: string; message: string; action?: string; onAction?: () => void }) {
   return (
     <View style={styles.root}>
-      <Icon source={icon} size={44} color="#9b3b2c" />
+      <Icon source={icon} size={44} color="#5e7464" />
       <Text variant="titleLarge">{title}</Text>
       <Text variant="bodyLarge" style={styles.message}>{message}</Text>
       {action && onAction ? <Button mode="contained" onPress={onAction}>{action}</Button> : null}
@@ -12,4 +12,4 @@ export function EmptyState({ icon, title, message, action, onAction }: { icon: s
   );
 }
 
-const styles = StyleSheet.create({ root: { alignItems: 'center', padding: 32, gap: 12 }, message: { textAlign: 'center', color: '#655d5a' } });
+const styles = StyleSheet.create({ root: { alignItems: 'center', padding: 32, gap: 12 }, message: { textAlign: 'center', color: '#52645a' } });

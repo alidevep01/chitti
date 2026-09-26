@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Appbar, Avatar, Badge, Text, useTheme } from 'react-native-paper';
+import { Appbar, Badge, Text, useTheme } from 'react-native-paper';
 import { router, type Href } from 'expo-router';
 
 import { useApp } from '@/data/AppProvider';
-import { initials } from '@/lib/format';
+import { UserAvatar } from '@/components/UserAvatar';
 
 type Props = {
   title: string;
@@ -45,9 +45,7 @@ export function Screen({ title, children, back = false, backHref, scroll = true,
             onPress={() => router.push('/profile')}
             style={({ pressed }) => [styles.avatarButton, pressed && styles.avatarPressed]}
           >
-            {currentUser.avatarUri
-              ? <Avatar.Image size={36} source={{ uri: currentUser.avatarUri }} />
-              : <Avatar.Text size={36} label={initials(currentUser.name)} style={styles.avatar} />}
+            <UserAvatar name={currentUser.name} uri={currentUser.avatarUri} size={36} style={styles.avatar} />
           </Pressable>
         ) : null}
       </Appbar.Header>
@@ -67,6 +65,6 @@ const styles = StyleSheet.create({
   badge: { position: 'absolute', right: 3, top: 5 },
   avatarButton: { width: 48, height: 48, marginRight: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   avatarPressed: { opacity: 0.65 },
-  avatar: { backgroundColor: '#ffdad2' },
-  demoBanner: { backgroundColor: '#ffdea1', paddingHorizontal: 20, paddingVertical: 7, alignItems: 'center' },
+  avatar: { backgroundColor: '#e5ede6' },
+  demoBanner: { backgroundColor: '#e5ede6', paddingHorizontal: 20, paddingVertical: 7, alignItems: 'center' },
 });

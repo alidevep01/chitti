@@ -4,15 +4,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Image, ScrollView, Share, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { Avatar, Button, Card, Dialog, Divider, Icon, Portal, ProgressBar, SegmentedButtons, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
+import { Button, Card, Dialog, Divider, Icon, Portal, ProgressBar, SegmentedButtons, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
 
 import { EmptyState } from '@/components/EmptyState';
 import { Screen } from '@/components/Screen';
 import { StatusPill } from '@/components/StatusPill';
+import { UserAvatar } from '@/components/UserAvatar';
 import { useApp } from '@/data/AppProvider';
 import type { ChittiInvitation, PaymentMethod } from '@/domain/types';
 import { env } from '@/lib/env';
-import { addMonthsClamped, formatDate, formatINR, initials, todayInIndia } from '@/lib/format';
+import { addMonthsClamped, formatDate, formatINR, todayInIndia } from '@/lib/format';
 
 export default function ChittiDetailScreen() {
   const theme = useTheme();
@@ -253,7 +254,7 @@ export default function ChittiDetailScreen() {
         <>
           <Card mode="elevated"><Card.Content style={styles.section}>
             <Text variant="labelLarge" style={{ color: theme.colors.primary }}>MONTH {currentRound.number} OF {chitti.memberCount}</Text>
-            <View style={styles.recipient}><Avatar.Text size={52} label={initials(currentRecipient?.name ?? '?')} /><View style={styles.grow}><Text variant="bodyMedium">Current recipient</Text><Text variant="headlineSmall" style={styles.heading}>{currentRecipient?.name}</Text></View></View>
+            <View style={styles.recipient}><UserAvatar name={currentRecipient?.name ?? '?'} uri={currentRecipient?.avatarUri} size={52} /><View style={styles.grow}><Text variant="bodyMedium">Current recipient</Text><Text variant="headlineSmall" style={styles.heading}>{currentRecipient?.name}</Text></View></View>
             <View style={styles.rowBetween}><Text>Due {formatDate(currentRound.dueDate)}</Text><Text>{confirmed}/{chitti.memberCount} confirmed</Text></View>
             <View style={styles.progressTrack}><ProgressBar progress={confirmed / chitti.memberCount} style={styles.progress} /></View>
             {myContribution ? <View style={styles.rowBetween}><Text variant="titleMedium">Your payment</Text><StatusPill status={myContribution.status} /></View> : null}
@@ -266,7 +267,7 @@ export default function ChittiDetailScreen() {
               <Text variant="titleLarge" style={styles.heading}>Payment review</Text>
               {currentRound.contributions.map((contribution, index) => {
                 const member = chitti.members.find((item) => item.id === contribution.memberId)!;
-                return <View key={contribution.id}>{index ? <Divider style={styles.divider} /> : null}<View style={styles.rowBetween}><View style={styles.recipient}><Avatar.Text size={38} label={initials(member.name)} /><View><Text variant="titleMedium">{member.name}</Text><Text>{contribution.method?.toUpperCase() ?? 'Not submitted'}{contribution.reference ? ` · ${contribution.reference}` : ''}</Text>{contribution.proofPath ? <Button compact icon="image-outline" onPress={() => void viewPaymentProof(contribution.proofPath!)}>View payment photo</Button> : null}</View></View><View style={styles.actions}><StatusPill status={contribution.status} />{contribution.status === 'submitted' ? <><Button compact onPress={() => void reviewContribution(chitti.id, currentRound.id, contribution.id, false)}>Reject</Button><Button compact mode="contained-tonal" onPress={() => void reviewContribution(chitti.id, currentRound.id, contribution.id, true)}>Confirm received</Button></> : null}</View></View></View>;
+                return <View key={contribution.id}>{index ? <Divider style={styles.divider} /> : null}<View style={styles.rowBetween}><View style={styles.recipient}><UserAvatar name={member.name} uri={member.avatarUri} size={38} /><View><Text variant="titleMedium">{member.name}</Text><Text>{contribution.method?.toUpperCase() ?? 'Not submitted'}{contribution.reference ? ` · ${contribution.reference}` : ''}</Text>{contribution.proofPath ? <Button compact icon="image-outline" onPress={() => void viewPaymentProof(contribution.proofPath!)}>View payment photo</Button> : null}</View></View><View style={styles.actions}><StatusPill status={contribution.status} />{contribution.status === 'submitted' ? <><Button compact onPress={() => void reviewContribution(chitti.id, currentRound.id, contribution.id, false)}>Reject</Button><Button compact mode="contained-tonal" onPress={() => void reviewContribution(chitti.id, currentRound.id, contribution.id, true)}>Confirm received</Button></> : null}</View></View></View>;
               })}
             </Card.Content></Card>
           ) : null}
@@ -307,7 +308,7 @@ export default function ChittiDetailScreen() {
         <View style={styles.rowBetween}><Text variant="titleLarge" style={styles.heading}>Members</Text><Text>{chitti.members.filter((item) => item.joined).length}/{chitti.memberCount} joined</Text></View>
         {currentUser.role === 'admin' && !['completed', 'cancelled'].includes(chitti.status) ? <View style={styles.memberActions}><Button icon="account-plus" mode="contained-tonal" onPress={() => setAddMemberOpen(true)}>Add member</Button>{chitti.status === 'active' && swappableMembers.length >= 2 ? <Button icon="swap-horizontal" mode="outlined" onPress={() => setSwapOpen(true)}>Swap months</Button> : null}</View> : null}
         {[...chitti.members].sort((a, b) => (a.payoutPosition ?? 99) - (b.payoutPosition ?? 99)).map((member, index) => (
-          <View key={member.id}>{index ? <Divider style={styles.divider} /> : null}<View style={styles.rowBetween}><View style={styles.recipient}><Avatar.Text size={40} label={initials(member.name)} /><View><Text variant="titleMedium">{member.name}{member.isAdmin ? ' · Admin' : ''}</Text><Text>{member.payoutPosition ? `Payout month ${member.payoutPosition}` : member.joined ? 'Ready for shuffle' : 'Invitation pending'}</Text></View></View>{demoMode && currentUser.role === 'admin' && !member.isAdmin && chitti.status !== 'active' ? <Button compact icon="share-variant" onPress={() => void shareInvite(member.name)}>Share</Button> : null}</View></View>
+          <View key={member.id}>{index ? <Divider style={styles.divider} /> : null}<View style={styles.rowBetween}><View style={styles.recipient}><UserAvatar name={member.name} uri={member.avatarUri} size={40} /><View><Text variant="titleMedium">{member.name}{member.isAdmin ? ' · Admin' : ''}</Text><Text>{member.payoutPosition ? `Payout month ${member.payoutPosition}` : member.joined ? 'Ready for shuffle' : 'Invitation pending'}</Text></View></View>{demoMode && currentUser.role === 'admin' && !member.isAdmin && chitti.status !== 'active' ? <Button compact icon="share-variant" onPress={() => void shareInvite(member.name)}>Share</Button> : null}</View></View>
         ))}
       </Card.Content></Card>
 
@@ -345,7 +346,7 @@ export default function ChittiDetailScreen() {
 
       <Portal><Dialog visible={paymentOpen} onDismiss={() => setPaymentOpen(false)} style={styles.dialog}><Dialog.Title>Pay / record {formatINR(chitti.monthlyAmountPaise)}{paymentRound ? ` · Month ${paymentRound.number}` : ''}</Dialog.Title><Dialog.ScrollArea><ScrollView contentContainerStyle={styles.paymentContent}>
         <SegmentedButtons value={method} onValueChange={(value) => setMethod(value as PaymentMethod)} buttons={[{ value: 'upi', label: 'UPI / GPay', icon: 'qrcode' }, { value: 'cash', label: 'Cash', icon: 'cash' }]} />
-        {method === 'upi' ? <><View style={styles.qr}><QRCode value={upiUri} size={176} color="#502018" backgroundColor="#ffffff" /></View><Text style={styles.center}>Pay to {chitti.payeeName}</Text><Text selectable style={[styles.upi, styles.center]}>{chitti.upiId}</Text><Button mode="contained-tonal" icon="open-in-new" onPress={() => void openUpi()}>Open a UPI app</Button><TextInput mode="outlined" label="UPI reference (optional)" value={reference} onChangeText={setReference} /></> : <Text variant="bodyLarge">Hand the cash to {chitti.payeeName}, then mark it submitted. The administrator will confirm receipt.</Text>}
+        {method === 'upi' ? <><View style={styles.qr}><QRCode value={upiUri} size={176} color="#2f4738" backgroundColor="#ffffff" /></View><Text style={styles.center}>Pay to {chitti.payeeName}</Text><Text selectable style={[styles.upi, styles.center]}>{chitti.upiId}</Text><Button mode="contained-tonal" icon="open-in-new" onPress={() => void openUpi()}>Open a UPI app</Button><TextInput mode="outlined" label="UPI reference (optional)" value={reference} onChangeText={setReference} /></> : <Text variant="bodyLarge">Hand the cash to {chitti.payeeName}, then mark it submitted. The administrator will confirm receipt.</Text>}
         <Divider /><Text variant="titleMedium">Payment photo (optional)</Text><Text variant="bodySmall">Attach a receipt, transfer screenshot, or cash handover photo. Only you and the administrator can open it.</Text>
         {paymentProof ? <View style={styles.proofSelection}><Image source={{ uri: paymentProof.uri }} style={styles.proofThumbnail} accessibilityLabel="Selected payment proof" /><View style={styles.grow}><Text numberOfLines={1}>{paymentProof.fileName || 'Selected photo'}</Text><Button compact textColor={theme.colors.error} onPress={() => setPaymentProof(undefined)}>Remove</Button></View></View> : <Button mode="outlined" icon="camera-outline" contentStyle={styles.bigButton} onPress={() => void choosePaymentProof()}>Add payment photo</Button>}
       </ScrollView></Dialog.ScrollArea><Dialog.Actions><Button disabled={busy} onPress={() => setPaymentOpen(false)}>Cancel</Button><Button mode="contained" loading={busy} disabled={busy} onPress={() => void submitPayment()}>I have paid</Button></Dialog.Actions></Dialog></Portal>
@@ -357,7 +358,7 @@ export default function ChittiDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: { gap: 9 }, section: { gap: 14 }, heading: { fontWeight: '700' }, amount: { fontWeight: '800', color: '#6b261b' },
+  hero: { gap: 9 }, section: { gap: 14 }, heading: { fontWeight: '700' }, amount: { fontWeight: '800', color: '#2f4738' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   iconTitle: { flexDirection: 'row', alignItems: 'center', gap: 10 }, recipient: { flexDirection: 'row', alignItems: 'center', gap: 12 }, grow: { flex: 1 },
   progress: { height: 10, borderRadius: 10 }, bigButton: { minHeight: 50 }, divider: { marginVertical: 12 },

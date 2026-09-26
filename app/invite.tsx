@@ -47,6 +47,6 @@ export default function InviteScreen() {
 const styles = StyleSheet.create({
   wrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 30 }, card: { width: '100%', maxWidth: 520 },
   content: { alignItems: 'stretch', gap: 18, padding: 16 }, icon: { width: 76, height: 76, borderRadius: 24, alignSelf: 'center', alignItems: 'center', justifyContent: 'center' },
-  center: { textAlign: 'center' }, button: { minHeight: 54 }, account: { backgroundColor: '#fff4dc', padding: 15, borderRadius: 12, gap: 4, alignItems: 'center' },
+  center: { textAlign: 'center' }, button: { minHeight: 54 }, account: { backgroundColor: '#e5ede6', padding: 15, borderRadius: 12, gap: 4, alignItems: 'center' },
   safety: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: '#eef5e9', padding: 12, borderRadius: 12 },
 });

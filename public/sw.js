@@ -1,5 +1,12 @@
-const CACHE = 'chitti-shell-v1';
-const SHELL = ['/', '/manifest.json', '/favicon.svg'];
+const CACHE = 'chitti-shell-v3';
+const SHELL = [
+  '/',
+  '/manifest.json',
+  '/favicon.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/maskable-icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
@@ -29,8 +36,8 @@ self.addEventListener('push', (event) => {
   try { data = { ...data, ...event.data.json() }; } catch {}
   event.waitUntil(self.registration.showNotification(data.title, {
     body: data.body,
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
     data: { url: data.url },
   }));
 });

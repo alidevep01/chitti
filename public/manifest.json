@@ -5,14 +5,26 @@
   "description": "A private, invitation-only family chitti tracker.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fffaf2",
-  "theme_color": "#9b3b2c",
+  "background_color": "#ffffff",
+  "theme_color": "#5e7464",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
