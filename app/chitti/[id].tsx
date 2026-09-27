@@ -12,6 +12,7 @@ import { StatusPill } from '@/components/StatusPill';
 import { UserAvatar } from '@/components/UserAvatar';
 import { RankingList } from '@/components/RankingList';
 import { moveRankingItem, rankingChanged, rankingSaveError } from '@/domain/ranking';
+import { importedMemberError, importedMemberPositions } from '@/domain/importedMembers';
 import { useApp } from '@/data/AppProvider';
 import type { ChittiInvitation, ManualPayoutOrderItem, PaymentMethod } from '@/domain/types';
 import { env } from '@/lib/env';
@@ -75,12 +76,9 @@ export default function ChittiDetailScreen() {
   const eligibleShareOwners = chitti.members.filter((member) => member.payoutPosition
     && (member.contributionShareBps ?? 10000) > 1
     && chitti.rounds.some((round) => round.number === member.payoutPosition && round.status !== 'completed' && round.payoutStatus !== 'paid'));
-  const assignedImportedPositions = new Set([
-    ...chitti.members.flatMap((member) => member.payoutPosition ? [member.payoutPosition] : []),
-    ...(chitti.invitations ?? []).flatMap((invitation) => invitation.status !== 'revoked' && invitation.payoutPosition ? [invitation.payoutPosition] : []),
-  ]);
-  const availableImportedPositions = Array.from({ length: Math.max(0, chitti.memberCount - 1) }, (_, index) => index + 2).filter((position) => !assignedImportedPositions.has(position));
+  const availableImportedPositions = importedMemberPositions(chitti);
   const addingImportedPosition = chitti.isImported && chitti.status === 'inviting';
+  const extendingImportedSchedule = addingImportedPosition && availableImportedPositions[0] === chitti.memberCount + 1;
   const canAddMember = currentUser.role === 'admin'
     && !['completed', 'cancelled'].includes(chitti.status)
     && (!chitti.isImported || chitti.status === 'active' || (addingImportedPosition && availableImportedPositions.length > 0));
@@ -228,7 +226,7 @@ export default function ChittiDetailScreen() {
       if (addingImportedPosition) {
         const result = await addImportedMemberInvitation(chitti.id, member, payoutPosition);
         closeMemberForm();
-        setMessage(`Invitation created for payout month ${result.payoutPosition}.`);
+        setMessage(`Invitation created for payout month ${result.payoutPosition}.${extendingImportedSchedule ? ' The total months and end date have been updated; the existing ranking is unchanged.' : ''}`);
         try {
           await emailInvite(member.name, member.email, result.token);
         } catch {
@@ -249,7 +247,7 @@ export default function ChittiDetailScreen() {
         setMessage('Invitation created. You can email or share it from Pending invitations.');
       }
     } catch (value) {
-      setMessage(value && typeof value === 'object' && 'message' in value ? String(value.message) : 'Could not add this member.');
+      setMessage(addingImportedPosition ? importedMemberError(value) : value && typeof value === 'object' && 'message' in value ? String(value.message) : 'Could not add this member.');
     } finally { setBusy(false); }
   };
 
@@ -546,6 +544,7 @@ export default function ChittiDetailScreen() {
       <Card mode="outlined"><Card.Content style={styles.section}>
         <View style={styles.rowBetween}><Text variant="titleLarge" style={styles.heading}>Members</Text><Text>{chitti.members.filter((item) => item.joined).length}/{chitti.memberCount} joined</Text></View>
         {canAddMember ? <View style={styles.memberActions}><Button icon="account-plus" mode="contained-tonal" onPress={openMemberForm}>Add member</Button>{chitti.status === 'active' && eligibleShareOwners.length > 0 ? <Button icon="account-multiple-plus" mode="outlined" onPress={() => { setCoOwnerSourceId(eligibleShareOwners[0]?.id ?? ''); setCoOwnerOpen(true); }}>Add co-owner</Button> : null}{chitti.status === 'active' && swappableMembers.length >= 2 ? <Button icon="swap-horizontal" mode="outlined" onPress={() => setSwapOpen(true)}>Swap months</Button> : null}</View> : null}
+        {currentUser.role === 'admin' && addingImportedPosition && availableImportedPositions.length === 0 ? <Text variant="bodySmall">All 50 payout months are assigned. This chitti has reached the member limit.</Text> : null}
         {roster.map((entry, index) => {
           const person = entry.value;
           return <View key={`${entry.kind}:${person.id}`}>
@@ -587,9 +586,11 @@ export default function ChittiDetailScreen() {
 
       {['active', 'completed'].includes(chitti.status) && chitti.rounds.length > 0 ? <Card mode="outlined"><Card.Content style={styles.section}><Text variant="titleLarge" style={styles.heading}>Schedule</Text>{chitti.rounds.map((round, index) => { const recipients = round.payoutShares?.map((share) => chitti.members.find((member) => member.id === share.recipientMemberId)?.name).filter(Boolean); const recipient = chitti.members.find((member) => member.id === round.recipientMemberId); return <View key={round.id}>{index ? <Divider style={styles.divider} /> : null}<View style={styles.rowBetween}><View><Text variant="titleMedium">Month {round.number} · {recipients?.length ? recipients.join(' + ') : recipient?.name}</Text><Text>{formatDate(round.dueDate)}</Text></View><StatusPill status={round.status === 'completed' ? 'completed' : round.status} /></View></View>; })}<Text>{chitti.memberCount - completed} months remaining</Text></Card.Content></Card> : null}
 
-      <Portal><Dialog visible={addMemberOpen} onDismiss={closeMemberForm} style={styles.dialog}><Dialog.Title>Add a member</Dialog.Title><Dialog.Content style={styles.section}>
+      <Portal><Dialog visible={addMemberOpen} onDismiss={closeMemberForm} style={styles.dialog}><Dialog.Title>Add a member</Dialog.Title><Dialog.ScrollArea><ScrollView contentContainerStyle={styles.paymentContent}>
         <Text>{addingImportedPosition
-          ? 'Assign this member to one of the payout months that is still empty. The total number of months will not change.'
+          ? extendingImportedSchedule
+            ? `All ${chitti.memberCount} positions are assigned. This invitation adds payout month ${chitti.memberCount + 1}, increasing the total months and monthly pot and extending the end date to ${formatDate(addMonthsClamped(chitti.firstDueDate, chitti.memberCount))}. The contribution per member, existing ranking, and recorded completed months stay unchanged.`
+            : 'Assign this member to one of the payout months that is still empty. The total number of months will not change.'
           : chitti.status === 'active'
           ? 'After joining, this member receives the final payout month and owes every elapsed contribution.'
           : ['shuffle_scheduled', 'awaiting_approval'].includes(chitti.status)
@@ -598,8 +599,8 @@ export default function ChittiDetailScreen() {
         <TextInput mode="outlined" label="Full name" value={memberName} onChangeText={setMemberName} />
         <TextInput mode="outlined" label="Google email" value={memberEmail} onChangeText={setMemberEmail} autoCapitalize="none" keyboardType="email-address" />
         <TextInput mode="outlined" label="Phone number" value={memberPhone} onChangeText={setMemberPhone} keyboardType="phone-pad" />
-        {addingImportedPosition ? <><TextInput mode="outlined" label="Payout month" value={memberPayoutPosition} onChangeText={(value) => /^\d*$/.test(value) && setMemberPayoutPosition(value)} keyboardType="numeric" /><Text variant="bodySmall">Available months: {availableImportedPositions.join(', ')}</Text></> : null}
-      </Dialog.Content><Dialog.Actions><Button onPress={closeMemberForm}>Cancel</Button><Button mode="contained" loading={busy} disabled={busy} onPress={() => void addMember()}>Create invitation</Button></Dialog.Actions></Dialog></Portal>
+        {addingImportedPosition ? <><TextInput mode="outlined" label="Payout month" value={memberPayoutPosition} onChangeText={(value) => /^\d*$/.test(value) && setMemberPayoutPosition(value)} keyboardType="numeric" editable={!extendingImportedSchedule} /><Text variant="bodySmall">{extendingImportedSchedule ? 'The new member starts at the last position. You can edit the payout ranking before activation.' : `Available months: ${availableImportedPositions.join(', ')}`}</Text></> : null}
+      </ScrollView></Dialog.ScrollArea><Dialog.Actions><Button onPress={closeMemberForm}>Cancel</Button><Button mode="contained" loading={busy} disabled={busy} onPress={() => void addMember()}>Create invitation</Button></Dialog.Actions></Dialog></Portal>
 
       <Portal><Dialog visible={coOwnerOpen} onDismiss={() => setCoOwnerOpen(false)} style={styles.dialog}><Dialog.Title>Add a payout co-owner</Dialog.Title><Dialog.ScrollArea><ScrollView contentContainerStyle={styles.paymentContent}>
         <Text>Select the existing owner whose contribution and payout will be split. The two shares remain in the same payout month.</Text>

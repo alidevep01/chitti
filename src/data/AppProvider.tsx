@@ -5,6 +5,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { Platform } from 'react-native';
 
 import { assignPayoutPositions, buildRounds, refreshRound } from '@/domain/rules';
+import { importedMemberPositions } from '@/domain/importedMembers';
 import type {
   AppNotification,
   Chitti,
@@ -386,11 +387,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await reload();
       return { invitationId: result.invitation_id, token: result.token, payoutPosition: result.payout_position };
     }
+    const target = state.chittis.find((chitti) => chitti.id === chittiId);
+    if (state.users.find((user) => user.id === state.userId)?.role !== 'admin' || !target?.isImported || target.status !== 'inviting') throw new Error('Only the administrator can add members to a pending existing chitti.');
+    if (!importedMemberPositions(target).includes(payoutPosition)) throw new Error('This payout month is unavailable. Refresh and try again.');
+    if (target.members.some((item) => item.email.toLowerCase() === member.email.trim().toLowerCase())
+      || target.invitations?.some((item) => ['pending', 'accepted'].includes(item.status) && item.email.toLowerCase() === member.email.trim().toLowerCase())) throw new Error('This email is already assigned.');
     const invitationId = `invite-${crypto.randomUUID()}`;
     const token = `demo-${crypto.randomUUID()}`;
     setInviteLinks((current) => ({ ...current, [invitationId]: token }));
     await persist(updateChitti(state, chittiId, (chitti) => ({
       ...chitti,
+      memberCount: Math.max(chitti.memberCount, payoutPosition),
+      endDate: addMonthsClamped(chitti.firstDueDate, Math.max(chitti.memberCount, payoutPosition) - 1),
       invitations: [...(chitti.invitations ?? []), { id: invitationId, ...member, status: 'pending', payoutPosition }],
     })));
     return { invitationId, token, payoutPosition };

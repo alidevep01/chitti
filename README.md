@@ -61,6 +61,12 @@ After every database migration, refresh the checked-in schema types with `npm ru
 
 The initial schema is in `supabase/migrations/202609120001_initial_schema.sql`. All amounts are integer paise. The browser receives only a publishable key; privileged mutations verify the authenticated user inside database transactions.
 
+### Adding members to a pending existing chitti
+
+From the **Members** card, choose **Add member**. Empty planned payout months are filled first. When every position is assigned to a joined member or pending invitation, adding a member appends the next month (up to 50). The form explains the increase in total months, monthly pot, and end date before the invitation is created. Existing rankings, the contribution per member, and recorded completed months remain unchanged; the administrator can still edit the ranking before activation.
+
+This requires `202609270001_expand_pending_existing_chitti.sql`. Apply locally with `npx supabase migration up --local`, then run `npm run supabase:types` and `npm run test:db`. Apply pending migrations to the hosted project with `npx supabase db push` (use the password-based connection if required) **before** building and deploying the new website. Do not reset a database containing real users.
+
 ### Web Push
 
 Generate VAPID keys and set `EXPO_PUBLIC_VAPID_PUBLIC_KEY` in the web build. Add the following server-only Supabase function secrets:
