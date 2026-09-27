@@ -22,13 +22,13 @@ export default function NotificationsScreen() {
 
   return (
     <Screen title="Notifications" back action={notifications.some((item) => !item.read) ? <Button onPress={() => void markAllNotificationsRead()}>Mark all read</Button> : undefined}>
-      <Card mode="contained" style={styles.pushCard}><Card.Content style={styles.pushContent}><Icon source="bell-ring-outline" size={30} color="#5e7464" /><View style={styles.grow}><Text variant="titleMedium">Get important updates</Text><Text>Enable private background alerts on this device. Notification text never includes payment details.</Text></View><Button mode="contained-tonal" onPress={() => void enablePush()}>Enable</Button></Card.Content></Card>
+      <Card mode="contained" style={styles.pushCard}><Card.Content style={styles.pushContent}><Icon source="bell-ring-outline" size={30} color="#C79A33" /><View style={styles.grow}><Text variant="titleMedium">Get important updates</Text><Text>Enable private background alerts on this device. Notification text never includes payment details.</Text></View><Button mode="contained-tonal" onPress={() => void enablePush()}>Enable</Button></Card.Content></Card>
       {notifications.length === 0 ? <EmptyState icon="bell-outline" title="All caught up" message="Invitations, payment reminders, and payout updates will appear here." /> : (
-        <Card mode="outlined"><Card.Content>{notifications.map((item, index) => <View key={item.id}>{index ? <Divider /> : null}<Card.Title title={item.title} subtitle={new Date(item.createdAt).toLocaleString('en-IN')} left={(props) => <Icon {...props} source={item.read ? 'bell-outline' : 'bell-badge-outline'} size={28} color={item.read ? '#718078' : '#5e7464'} />} right={() => !item.read ? <View style={styles.dot} /> : null} /><Card.Content><Text>{item.message}</Text></Card.Content><Card.Actions><Button onPress={() => void open(item.id, item.route)}>{item.route ? 'Open' : 'Mark read'}</Button></Card.Actions></View>)}</Card.Content></Card>
+        <Card mode="outlined"><Card.Content>{notifications.map((item, index) => <View key={item.id}>{index ? <Divider /> : null}<Card.Title title={item.title} subtitle={new Date(item.createdAt).toLocaleString('en-IN')} left={(props) => <Icon {...props} source={item.read ? 'bell-outline' : 'bell-badge-outline'} size={28} color={item.read ? '#9A7A35' : '#C79A33'} />} right={() => !item.read ? <View style={styles.dot} /> : null} /><Card.Content><Text>{item.message}</Text></Card.Content><Card.Actions><Button onPress={() => void open(item.id, item.route)}>{item.route ? 'Open' : 'Mark read'}</Button></Card.Actions></View>)}</Card.Content></Card>
       )}
       <Snackbar visible={Boolean(message)} onDismiss={() => setMessage('')}>{message}</Snackbar>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({ pushCard: { backgroundColor: '#e5ede6' }, pushContent: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }, grow: { flex: 1, minWidth: 220 }, dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#5e7464', marginRight: 16 } });
+const styles = StyleSheet.create({ pushCard: { backgroundColor: '#F5EDDB' }, pushContent: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }, grow: { flex: 1, minWidth: 220 }, dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#C79A33', marginRight: 16 } });

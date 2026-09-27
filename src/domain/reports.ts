@@ -15,14 +15,17 @@ export function buildDemoReports(currentUser: UserProfile, chittis: Chitti[], to
       const onTimePayments = contributions.filter(({ contribution }) => contribution.status === 'confirmed' && contribution.confirmedOnTime === true).length;
       const latePayments = contributions.filter(({ contribution }) => contribution.status === 'confirmed' && contribution.confirmedOnTime === false).length;
       const missedDueDates = contributions.filter(({ round, contribution }) => round.dueDate < today && contribution.status !== 'confirmed').length;
-      const confirmedAmountPaise = contributions.filter(({ contribution }) => contribution.status === 'confirmed').length * chitti.monthlyAmountPaise;
-      const overdueAmountPaise = missedDueDates * chitti.monthlyAmountPaise;
-      const payoutRound = chitti.rounds.find((round) => round.recipientMemberId === user.id);
+      const confirmedAmountPaise = contributions.filter(({ contribution }) => contribution.status === 'confirmed')
+        .reduce((sum, { contribution }) => sum + (contribution.amountPaise ?? chitti.monthlyAmountPaise), 0);
+      const overdueAmountPaise = contributions.filter(({ round, contribution }) => round.dueDate < today && contribution.status !== 'confirmed')
+        .reduce((sum, { contribution }) => sum + (contribution.amountPaise ?? chitti.monthlyAmountPaise), 0);
+      const payoutRound = chitti.rounds.find((round) => round.payoutShares?.some((share) => share.recipientMemberId === user.id) || round.recipientMemberId === user.id);
+      const membership = chitti.members.find((member) => member.id === user.id);
       return {
         chittiId: chitti.id,
         name: chitti.name,
         status: chitti.status,
-        monthlyAmountPaise: chitti.monthlyAmountPaise,
+        monthlyAmountPaise: Math.floor(chitti.monthlyAmountPaise * (membership?.contributionShareBps ?? 10000) / 10000),
         totalAmountPaise: chitti.monthlyAmountPaise * chitti.memberCount,
         startDate: chitti.startDate,
         endDate: chitti.endDate,

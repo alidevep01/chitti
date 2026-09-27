@@ -18,7 +18,7 @@ export function PwaBootstrap() {
       themeColor.name = 'theme-color';
       document.head.appendChild(themeColor);
     }
-    themeColor.content = '#5e7464';
+    themeColor.content = '#C79A33';
 
     if (!document.querySelector('link[rel="apple-touch-icon"]')) {
       const appleTouchIcon = document.createElement('link');

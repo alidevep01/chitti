@@ -36,7 +36,7 @@ const schema = z.object({
   name: z.string().trim().min(3, 'Enter a name for this chitti'),
   description: z.string().trim().max(200).optional(),
   monthlyAmount: z.string().refine((value) => Number(value) >= 100, 'Enter an amount of at least ₹100'),
-  memberCount: z.number().int().min(2).max(50),
+  memberCount: z.number().int('Enter a whole number').min(2, 'At least 2 members are required').max(50, 'A chitti can have at most 50 members'),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a start date'),
   firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD'),
   upiId: z.string().trim().min(3, 'Enter the administrator UPI ID'),
@@ -67,6 +67,7 @@ export default function NewChittiScreen() {
   const today = dateToIso(new Date());
   const [datePicker, setDatePicker] = useState<'start' | 'due'>();
   const [contactSearch, setContactSearch] = useState('');
+  const [memberCountText, setMemberCountText] = useState('4');
   const [message, setMessage] = useState('');
   const { control, handleSubmit, getValues, reset, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -77,19 +78,24 @@ export default function NewChittiScreen() {
     },
   });
   const { fields, replace } = useFieldArray({ control, name: 'invites' });
-  const memberCount = useWatch({ control, name: 'memberCount' });
+  const memberCountValue = useWatch({ control, name: 'memberCount' });
+  const memberCount = Number.isInteger(memberCountValue) && memberCountValue >= 1 ? memberCountValue : 0;
   const monthlyAmount = useWatch({ control, name: 'monthlyAmount' });
   const startDate = useWatch({ control, name: 'startDate' });
   const firstDueDate = useWatch({ control, name: 'firstDueDate' });
   const invites = useWatch({ control, name: 'invites' });
   const amount = toPaise(monthlyAmount || '0');
-  const endDate = addMonthsClamped(firstDueDate, memberCount - 1);
+  const endDate = addMonthsClamped(firstDueDate, Math.max(0, memberCount - 1));
+  const hasValidMemberCount = memberCount >= 2 && memberCount <= 50;
 
   const changeMemberCount = (text: string) => {
-    const count = Math.max(2, Math.min(50, Number(text) || 2));
-    setValue('memberCount', count, { shouldValidate: true });
+    if (!/^\d*$/.test(text)) return;
+    setMemberCountText(text);
+    const count = text === '' ? Number.NaN : Number(text);
+    setValue('memberCount', count, { shouldDirty: true, shouldValidate: true });
     const currentInvites = getValues('invites');
-    replace(Array.from({ length: count - 1 }, (_, index) => currentInvites[index] ?? { name: '', email: '', phone: '' }));
+    const inviteCount = Number.isInteger(count) ? Math.max(0, Math.min(49, count - 1)) : 0;
+    replace(Array.from({ length: inviteCount }, (_, index) => currentInvites[index] ?? { name: '', email: '', phone: '' }));
   };
 
   const addSavedContact = (contact: (typeof savedContacts)[number]) => {
@@ -140,18 +146,18 @@ export default function NewChittiScreen() {
         <View style={styles.twoColumns}>
           <View style={styles.column}><Field control={control} name="monthlyAmount" label="Monthly amount (₹)" keyboardType="numeric" error={errors.monthlyAmount?.message} /></View>
           <View style={styles.column}>
-            <TextInput mode="outlined" label="Total members / months" keyboardType="numeric" value={String(memberCount)} onChangeText={changeMemberCount} />
-            <HelperText type="info">Includes the administrator</HelperText>
+            <TextInput mode="outlined" label="Total members / months" keyboardType="numeric" value={memberCountText} onChangeText={changeMemberCount} error={Boolean(errors.memberCount)} />
+            {errors.memberCount ? <HelperText type="error" visible>{memberCountText === '' ? 'Enter total members' : errors.memberCount.message}</HelperText> : <HelperText type="info">Includes the administrator</HelperText>}
           </View>
         </View>
-        <Card mode="contained" style={styles.calculation}><Card.Content><Text variant="labelLarge">Calculated monthly pot</Text><Text variant="headlineMedium" style={styles.amount}>{formatINR(amount * memberCount)}</Text><Text>{memberCount} members × {formatINR(amount)} for {memberCount} months</Text></Card.Content></Card>
+        <Card mode="contained" style={styles.calculation}><Card.Content><Text variant="labelLarge">Calculated monthly pot</Text><Text variant="headlineMedium" style={styles.amount}>{formatINR(amount * memberCount)}</Text><Text>{memberCount || '—'} members × {formatINR(amount)} for {memberCount || '—'} months</Text></Card.Content></Card>
         <Card mode="outlined"><Card.Content style={styles.schedule}>
           <Text variant="titleMedium" style={styles.heading}>Schedule</Text>
           <View style={styles.twoColumns}>
             <View style={styles.column}><Text variant="labelLarge">Chitti starts</Text><Button mode="outlined" icon="calendar-start" contentStyle={styles.dateButton} onPress={() => setDatePicker('start')}>{formatDate(startDate)}</Button>{errors.startDate?.message ? <HelperText type="error">{errors.startDate.message}</HelperText> : null}</View>
             <View style={styles.column}><Text variant="labelLarge">First contribution due</Text><Button mode="outlined" icon="calendar-clock" contentStyle={styles.dateButton} onPress={() => setDatePicker('due')}>{formatDate(firstDueDate)}</Button>{errors.firstDueDate?.message ? <HelperText type="error">{errors.firstDueDate.message}</HelperText> : null}</View>
           </View>
-          <View style={styles.dateSummary}><Text variant="labelLarge">Calculated end date</Text><Text variant="titleLarge" style={styles.heading}>{formatDate(endDate)}</Text><Text>{memberCount} monthly rounds · contributions are due on day {Number(firstDueDate.slice(-2))} of each month, clamped to month end.</Text></View>
+          <View style={styles.dateSummary}><Text variant="labelLarge">Calculated end date</Text><Text variant="titleLarge" style={styles.heading}>{formatDate(endDate)}</Text><Text>{memberCount || '—'} monthly rounds · contributions are due on day {Number(firstDueDate.slice(-2))} of each month, clamped to month end.</Text></View>
         </Card.Content></Card>
         <View style={styles.twoColumns}>
           <View style={styles.column}><Field control={control} name="upiId" label="Administrator UPI ID" error={errors.upiId?.message} /></View>
@@ -171,7 +177,7 @@ export default function NewChittiScreen() {
       </Card.Content></Card> : null}
 
       <Card mode="elevated"><Card.Content style={styles.section}>
-        <Text variant="titleLarge" style={styles.heading}>Invite {memberCount - 1} members</Text>
+        <Text variant="titleLarge" style={styles.heading}>{memberCount > 1 ? `Invite ${memberCount - 1} members` : 'Invite members'}</Text>
         <Text>Each person receives a unique, single-use link. Their Google email must match this invitation.</Text>
         {fields.map((field, index) => (
           <View key={field.id} style={styles.invite}>
@@ -203,7 +209,7 @@ export default function NewChittiScreen() {
           setDatePicker(undefined);
         }}
       />
-      <Button mode="contained" icon="check" loading={isSubmitting} disabled={isSubmitting} contentStyle={styles.submit} onPress={handleSubmit(submit)}>Create private chitti</Button>
+      <Button mode="contained" icon="check" loading={isSubmitting} disabled={isSubmitting || !hasValidMemberCount} contentStyle={styles.submit} onPress={handleSubmit(submit)}>Create private chitti</Button>
       <Snackbar visible={Boolean(message)} onDismiss={() => setMessage('')}>{message}</Snackbar>
     </Screen>
   );
@@ -212,7 +218,7 @@ export default function NewChittiScreen() {
 const styles = StyleSheet.create({
   section: { gap: 14 }, info: { gap: 5 }, heading: { fontWeight: '700' },
   twoColumns: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, column: { flex: 1, minWidth: 220 },
-  calculation: { backgroundColor: '#e5ede6' }, amount: { fontWeight: '800', color: '#2f4738' },
+  calculation: { backgroundColor: '#F5EDDB' }, amount: { fontWeight: '800', color: '#111111' },
   schedule: { gap: 12 }, dateButton: { minHeight: 48 }, dateSummary: { gap: 4, paddingTop: 4 },
   invite: { gap: 8, paddingTop: 8 }, submit: { minHeight: 54 },
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }, contactDetails: { flex: 1, minWidth: 190 }, contactDivider: { marginVertical: 10 },

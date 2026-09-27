@@ -29,6 +29,7 @@ export interface ChittiMember {
   avatarUri?: string;
   joined: boolean;
   payoutPosition?: number;
+  contributionShareBps?: number;
   approval: ApprovalStatus;
   approvalReason?: string;
   isAdmin?: boolean;
@@ -37,6 +38,7 @@ export interface ChittiMember {
 export interface Contribution {
   id: string;
   memberId: string;
+  amountPaise?: number;
   status: ContributionStatus;
   method?: PaymentMethod;
   reference?: string;
@@ -63,7 +65,17 @@ export interface ChittiRound {
   payoutStatus: 'blocked' | 'ready' | 'paid';
   confirmedCount?: number;
   contributions: Contribution[];
+  payoutShares?: PayoutShare[];
   adjustments?: PayoutAdjustment[];
+}
+
+export interface PayoutShare {
+  id: string;
+  recipientMemberId: string;
+  amountPaise: number;
+  shareBps: number;
+  status: 'blocked' | 'ready' | 'paid';
+  paidAt?: string;
 }
 
 export interface PayoutAdjustment {
@@ -93,6 +105,8 @@ export interface Chitti {
   rounds: ChittiRound[];
   shuffleScheduledAt?: string;
   resultHash?: string;
+  isImported?: boolean;
+  importedCompletedMonths?: number;
   createdAt: string;
 }
 
@@ -103,6 +117,9 @@ export interface ChittiInvitation {
   phone: string;
   status: 'pending' | 'accepted' | 'revoked' | 'expired';
   lateJoin?: boolean;
+  payoutPosition?: number;
+  coOwnerSourceMemberId?: string;
+  coOwnerShareBps?: number;
 }
 
 export interface PendingInvitation {
@@ -111,6 +128,8 @@ export interface PendingInvitation {
   chittiName: string;
   invitedName: string;
   monthlyAmountPaise: number;
+  contributionAmountPaise?: number;
+  coOwnerShareBps?: number;
   memberCount: number;
   administratorName: string;
   expiresAt: string;
@@ -150,6 +169,20 @@ export interface CreateChittiInput {
   upiId: string;
   payeeName: string;
   invites: InviteDraft[];
+}
+
+export interface ExistingChittiInvite extends InviteDraft {
+  payoutPosition: number;
+}
+
+export interface ImportExistingChittiInput extends Omit<CreateChittiInput, 'invites'> {
+  completedMonths: number;
+  invites: ExistingChittiInvite[];
+}
+
+export interface ManualPayoutOrderItem {
+  kind: 'member' | 'invitation';
+  id: string;
 }
 
 export interface ChittiHistoryReport {

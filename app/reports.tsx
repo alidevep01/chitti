@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   progressTrack: { height: 10, width: '100%' },
   progress: { height: 10, borderRadius: 8 },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  metric: { minWidth: 105, flexGrow: 1, padding: 12, borderRadius: 12, backgroundColor: '#f2f6f2' },
+  metric: { minWidth: 105, flexGrow: 1, padding: 12, borderRadius: 12, backgroundColor: '#FBF7EC' },
   amounts: { gap: 5 },
   historyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },

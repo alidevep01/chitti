@@ -9,7 +9,9 @@ import type {
   AppNotification,
   Chitti,
   CreateChittiInput,
+  ImportExistingChittiInput,
   InviteDraft,
+  ManualPayoutOrderItem,
   PaymentMethod,
   PaymentProofUpload,
   PendingInvitation,
@@ -37,10 +39,15 @@ type AppContextValue = {
   signOut: () => Promise<void>;
   switchDemoUser: (id: string) => void;
   createChitti: (input: CreateChittiInput) => Promise<string>;
+  importExistingChitti: (input: ImportExistingChittiInput) => Promise<string>;
   redeemInvitation: (token?: string, invitationId?: string) => Promise<string>;
   regenerateInvitation: (invitationId: string) => Promise<string>;
   updateInvitation: (chittiId: string, invitationId: string, member: InviteDraft) => Promise<string>;
   addMemberInvitation: (chittiId: string, member: InviteDraft) => Promise<{ invitationId: string; token: string; lateJoin: boolean; shuffleReset: boolean }>;
+  addImportedMemberInvitation: (chittiId: string, member: InviteDraft, payoutPosition: number) => Promise<{ invitationId: string; token: string; payoutPosition: number }>;
+  addCoOwnerInvitation: (chittiId: string, sourceMemberId: string, shareBps: number, member: InviteDraft) => Promise<{ invitationId: string; token: string; payoutPosition: number; shareBps: number }>;
+  convertPendingChittiToExisting: (chittiId: string, completedMonths: number, order: ManualPayoutOrderItem[]) => Promise<void>;
+  cancelChitti: (chittiId: string) => Promise<void>;
   swapPayoutMonths: (chittiId: string, firstMemberId: string, secondMemberId: string) => Promise<void>;
   scheduleShuffle: (chittiId: string) => Promise<void>;
   runShuffle: (chittiId: string) => Promise<void>;
@@ -50,6 +57,7 @@ type AppContextValue = {
   getPaymentProofUrl: (path: string) => Promise<string>;
   reviewContribution: (chittiId: string, roundId: string, contributionId: string, accepted: boolean) => Promise<void>;
   confirmPayout: (chittiId: string, roundId: string) => Promise<void>;
+  confirmPayoutShare: (chittiId: string, roundId: string, payoutShareId: string) => Promise<void>;
   confirmPayoutAdjustment: (chittiId: string, roundId: string, adjustmentId: string) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
@@ -169,8 +177,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const inviteRoute = inviteToken?.startsWith('invitation:')
       ? `/invite?invitation=${encodeURIComponent(inviteToken.slice('invitation:'.length))}`
       : inviteToken ? `/invite?token=${encodeURIComponent(inviteToken)}` : '/dashboard';
+    const currentWebOrigin = typeof window === 'undefined' ? env.appUrl : window.location.origin;
     const redirectTo = Platform.OS === 'web'
-      ? `${env.appUrl}${inviteRoute}`
+      ? `${currentWebOrigin}${inviteRoute}`
       : Linking.createURL(inviteRoute.replace(/^\//, ''));
     const { error } = await supabase!.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
     if (error) throw error;
@@ -235,6 +244,64 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }, ...state.notifications],
     });
     return createdId;
+  };
+
+  const importExistingChitti = async (input: ImportExistingChittiInput) => {
+    if (!env.isDemo) {
+      const { data, error } = await supabase!.rpc('import_existing_chitti', { input });
+      if (error) throw error;
+      const result = data as { chitti_id: string; invitations: { id: string; token: string }[] };
+      setInviteLinks((current) => ({ ...current, ...Object.fromEntries(result.invitations.map((invite) => [invite.id, invite.token])) }));
+      await reload();
+      return String(result.chitti_id);
+    }
+
+    const admin = state.users.find((user) => user.id === state.userId && user.role === 'admin');
+    if (!admin) throw new Error('Only the administrator can import a chitti');
+    const id = `imported-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now()}`;
+    const members = [{ ...admin, joined: true, isAdmin: true, payoutPosition: 1, approval: 'accepted' as const }];
+    const invitations = input.invites.map((invite, index) => ({
+      id: `import-invite-${Date.now()}-${index}`,
+      name: invite.name,
+      email: invite.email,
+      phone: invite.phone,
+      status: 'pending' as const,
+      payoutPosition: invite.payoutPosition,
+    }));
+    const chitti: Chitti = {
+      id,
+      name: input.name,
+      description: input.description,
+      monthlyAmountPaise: input.monthlyAmountPaise,
+      memberCount: input.memberCount,
+      startDate: input.startDate,
+      firstDueDate: input.firstDueDate,
+      endDate: addMonthsClamped(input.firstDueDate, input.memberCount - 1),
+      dueDay: input.dueDay,
+      upiId: input.upiId,
+      payeeName: input.payeeName,
+      status: 'inviting',
+      members,
+      invitations,
+      rounds: [],
+      isImported: true,
+      importedCompletedMonths: input.completedMonths,
+      createdAt: new Date().toISOString(),
+    };
+    await persist({
+      ...state,
+      chittis: [chitti, ...state.chittis],
+      notifications: [{
+        id: `notification-${Date.now()}`,
+        userId: admin.id,
+        title: `${chitti.name} imported`,
+        message: 'Invite the remaining members to complete the saved payout order.',
+        route: `/chitti/${id}`,
+        read: false,
+        createdAt: new Date().toISOString(),
+      }, ...state.notifications],
+    });
+    return id;
   };
 
   const redeemInvitation = async (token?: string, invitationId?: string) => {
@@ -302,6 +369,132 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lateJoin: previousStatus === 'active',
       shuffleReset,
     };
+  };
+
+  const addImportedMemberInvitation = async (chittiId: string, member: InviteDraft, payoutPosition: number) => {
+    if (!env.isDemo) {
+      const { data, error } = await supabase!.rpc('add_imported_chitti_invitation', {
+        p_chitti_id: chittiId,
+        p_name: member.name,
+        p_email: member.email,
+        p_phone: member.phone,
+        p_payout_position: payoutPosition,
+      });
+      if (error) throw error;
+      const result = data as { invitation_id: string; token: string; payout_position: number };
+      setInviteLinks((current) => ({ ...current, [result.invitation_id]: result.token }));
+      await reload();
+      return { invitationId: result.invitation_id, token: result.token, payoutPosition: result.payout_position };
+    }
+    const invitationId = `invite-${crypto.randomUUID()}`;
+    const token = `demo-${crypto.randomUUID()}`;
+    setInviteLinks((current) => ({ ...current, [invitationId]: token }));
+    await persist(updateChitti(state, chittiId, (chitti) => ({
+      ...chitti,
+      invitations: [...(chitti.invitations ?? []), { id: invitationId, ...member, status: 'pending', payoutPosition }],
+    })));
+    return { invitationId, token, payoutPosition };
+  };
+
+  const addCoOwnerInvitation = async (chittiId: string, sourceMemberId: string, shareBps: number, member: InviteDraft) => {
+    if (!env.isDemo) {
+      const { data, error } = await supabase!.rpc('add_coowner_invitation', {
+        p_chitti_id: chittiId,
+        p_source_member_id: sourceMemberId,
+        p_share_bps: shareBps,
+        p_name: member.name,
+        p_email: member.email,
+        p_phone: member.phone,
+      });
+      if (error) throw error;
+      const result = data as { invitation_id: string; token: string; payout_position: number; share_bps: number };
+      setInviteLinks((current) => ({ ...current, [result.invitation_id]: result.token }));
+      await reload();
+      return {
+        invitationId: result.invitation_id,
+        token: result.token,
+        payoutPosition: result.payout_position,
+        shareBps: result.share_bps,
+      };
+    }
+    const invitationId = `coowner-invite-${crypto.randomUUID()}`;
+    const token = `demo-${crypto.randomUUID()}`;
+    const chitti = state.chittis.find((item) => item.id === chittiId);
+    const source = chitti?.members.find((item) => item.id === sourceMemberId);
+    if (!source?.payoutPosition) throw new Error('Choose an owner with a payout month');
+    setInviteLinks((current) => ({ ...current, [invitationId]: token }));
+    await persist(updateChitti(state, chittiId, (item) => ({
+      ...item,
+      invitations: [...(item.invitations ?? []), {
+        id: invitationId,
+        ...member,
+        status: 'pending',
+        payoutPosition: source.payoutPosition,
+        coOwnerSourceMemberId: sourceMemberId,
+        coOwnerShareBps: shareBps,
+      }],
+    })));
+    return { invitationId, token, payoutPosition: source.payoutPosition, shareBps };
+  };
+
+  const convertPendingChittiToExisting = async (chittiId: string, completedMonths: number, order: ManualPayoutOrderItem[]) => {
+    if (!env.isDemo) {
+      const { error } = await supabase!.rpc('convert_pending_chitti_to_existing', {
+        p_chitti_id: chittiId,
+        p_completed_months: completedMonths,
+        p_order: order,
+      });
+      if (error) throw error;
+      await reload();
+      return;
+    }
+    await persist(updateChitti(state, chittiId, (chitti) => {
+      if (state.users.find((user) => user.id === state.userId)?.role !== 'admin' || !['draft', 'inviting', 'ready', 'shuffle_scheduled', 'awaiting_approval'].includes(chitti.status) || chitti.rounds.length > 0) {
+        throw new Error('Only the administrator can edit a pending chitti ranking.');
+      }
+      if (chitti.isImported && completedMonths !== (chitti.importedCompletedMonths ?? 0)) {
+        throw new Error('Editing the ranking cannot change the imported completed months.');
+      }
+      const roster = [
+        ...chitti.members.filter((member) => !member.isAdmin).map((member) => ({ key: `member:${member.id}`, position: member.payoutPosition })),
+        ...(chitti.invitations ?? []).filter((invitation) => invitation.status === 'pending').map((invitation) => ({ key: `invitation:${invitation.id}`, position: invitation.payoutPosition })),
+      ];
+      if (order.length !== roster.length || new Set(order.map((item) => `${item.kind}:${item.id}`)).size !== roster.length || order.some((item) => !roster.some((entry) => entry.key === `${item.kind}:${item.id}`))) {
+        throw new Error('The roster changed. Reopen the ranking editor and try again.');
+      }
+      const slots = roster.map((entry) => entry.position).sort((a, b) => (a ?? 0) - (b ?? 0));
+      const positions = new Map(order.map((item, index) => [`${item.kind}:${item.id}`, chitti.isImported ? slots[index] : index + 2]));
+      const members = chitti.members.map((member) => ({
+        ...member,
+        payoutPosition: member.isAdmin ? 1 : positions.get(`member:${member.id}`),
+        approval: 'accepted' as const,
+      }));
+      const invitations = (chitti.invitations ?? []).map((invitation) => invitation.status === 'pending'
+        ? { ...invitation, payoutPosition: positions.get(`invitation:${invitation.id}`) }
+        : invitation);
+      const everyoneJoined = members.length === chitti.memberCount;
+      return {
+        ...chitti,
+        isImported: true,
+        importedCompletedMonths: completedMonths,
+        status: everyoneJoined ? 'active' : 'inviting',
+        members,
+        invitations,
+        shuffleScheduledAt: undefined,
+        resultHash: undefined,
+        rounds: everyoneJoined ? buildRounds(members, chitti.firstDueDate, chitti.startDate) : [],
+      };
+    }));
+  };
+
+  const cancelChitti = async (chittiId: string) => {
+    if (!env.isDemo) {
+      const { error } = await supabase!.rpc('cancel_chitti', { p_chitti_id: chittiId });
+      if (error) throw error;
+      await reload();
+      return;
+    }
+    await persist(updateChitti(state, chittiId, (chitti) => ({ ...chitti, status: 'cancelled' })));
   };
 
   const updateInvitation = async (chittiId: string, invitationId: string, member: InviteDraft) => {
@@ -440,6 +633,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { ...chitti, rounds, status: completed ? 'completed' : chitti.status };
     }));
 
+  const confirmPayoutShare = (chittiId: string, roundId: string, payoutShareId: string) =>
+    remoteOrLocal('confirm_payout_share', { p_payout_share_id: payoutShareId, p_reference: null }, (current) =>
+      updateChitti(current, chittiId, (chitti) => {
+        const round = chitti.rounds.find((item) => item.id === roundId);
+        const payoutShares = round?.payoutShares?.map((share) => share.id === payoutShareId
+          ? { ...share, status: 'paid' as const, paidAt: new Date().toISOString() }
+          : share) ?? [];
+        const allPaid = payoutShares.length > 0 && payoutShares.every((share) => share.status === 'paid');
+        const rounds = chitti.rounds.map((item) => item.id === roundId
+          ? { ...item, payoutShares, status: allPaid ? 'completed' as const : item.status, payoutStatus: allPaid ? 'paid' as const : item.payoutStatus }
+          : item);
+        if (allPaid) {
+          const completedIndex = rounds.findIndex((item) => item.id === roundId);
+          if (rounds[completedIndex + 1]) rounds[completedIndex + 1] = { ...rounds[completedIndex + 1]!, status: 'collecting' };
+        }
+        return { ...chitti, rounds, status: rounds.every((item) => item.status === 'completed') ? 'completed' : chitti.status };
+      }));
+
   const confirmPayoutAdjustment = (chittiId: string, roundId: string, adjustmentId: string) =>
     remoteOrLocal('confirm_payout_adjustment', { p_adjustment_id: adjustmentId, p_reference: null }, (current) =>
       updateChitti(current, chittiId, (chitti) => ({
@@ -522,9 +733,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     savedContacts: env.isDemo && state.users.find((user) => user.id === state.userId)?.role === 'admin'
       ? state.users.filter((user) => user.id !== state.userId).map((user) => ({ ...user, timesInvited: 1, lastInvitedAt: new Date().toISOString() }))
       : savedContacts,
-    signInDemo, signInGoogle, signOut, switchDemoUser, createChitti, redeemInvitation, regenerateInvitation, updateInvitation, addMemberInvitation,
+    signInDemo, signInGoogle, signOut, switchDemoUser, createChitti, importExistingChitti, redeemInvitation, regenerateInvitation, updateInvitation, addMemberInvitation,
+    addImportedMemberInvitation, addCoOwnerInvitation, convertPendingChittiToExisting, cancelChitti,
     swapPayoutMonths, scheduleShuffle, runShuffle, voteShuffle, simulateApprovals, submitContribution, getPaymentProofUrl, reviewContribution,
-    confirmPayout, confirmPayoutAdjustment, markNotificationRead,
+    confirmPayout, confirmPayoutShare, confirmPayoutAdjustment, markNotificationRead,
     markAllNotificationsRead, updateProfile, reload,
   };
 
