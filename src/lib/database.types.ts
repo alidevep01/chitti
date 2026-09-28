@@ -51,13 +51,13 @@ isOneToOne: false
                   ]
                 },"chitti_members": {
                   Row: {
-                    "chitti_id": string,"contribution_share_bps": number,"is_admin": boolean,"joined_at": string,"payout_position": number | null,"user_id": string
+                    "chitti_id": string,"contribution_amount_paise": number,"contribution_share_bps": number,"is_admin": boolean,"joined_at": string,"payout_position": number | null,"user_id": string
                   }
                   Insert: {
-                    "chitti_id": string,"contribution_share_bps"?: number,"is_admin"?: boolean,"joined_at"?: string,"payout_position"?: number | null,"user_id": string
+                    "chitti_id": string,"contribution_amount_paise": number,"contribution_share_bps"?: number,"is_admin"?: boolean,"joined_at"?: string,"payout_position"?: number | null,"user_id": string
                   }
                   Update: {
-                    "chitti_id"?: string,"contribution_share_bps"?: number,"is_admin"?: boolean,"joined_at"?: string,"payout_position"?: number | null,"user_id"?: string
+                    "chitti_id"?: string,"contribution_amount_paise"?: number,"contribution_share_bps"?: number,"is_admin"?: boolean,"joined_at"?: string,"payout_position"?: number | null,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -126,13 +126,13 @@ isOneToOne: false
                   ]
                 },"invitations": {
                   Row: {
-                    "accepted_at": string | null,"accepted_by": string | null,"chitti_id": string,"coowner_share_bps": number | null,"coowner_source_member_id": string | null,"created_at": string,"expires_at": string,"id": string,"invited_email": string,"invited_name": string,"invited_phone": string,"late_join": boolean,"payout_position": number | null,"status": Database["public"]['Enums']["invitation_status"],"token_hash": string
+                    "accepted_at": string | null,"accepted_by": string | null,"chitti_id": string,"coowner_amount_paise": number | null,"coowner_share_bps": number | null,"coowner_source_invitation_id": string | null,"coowner_source_member_id": string | null,"created_at": string,"expires_at": string,"id": string,"invited_email": string,"invited_name": string,"invited_phone": string,"late_join": boolean,"payout_position": number | null,"status": Database["public"]['Enums']["invitation_status"],"token_hash": string
                   }
                   Insert: {
-                    "accepted_at"?: string | null,"accepted_by"?: string | null,"chitti_id": string,"coowner_share_bps"?: number | null,"coowner_source_member_id"?: string | null,"created_at"?: string,"expires_at"?: string,"id"?: string,"invited_email": string,"invited_name": string,"invited_phone": string,"late_join"?: boolean,"payout_position"?: number | null,"status"?: Database["public"]['Enums']["invitation_status"],"token_hash": string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"chitti_id": string,"coowner_amount_paise"?: number | null,"coowner_share_bps"?: number | null,"coowner_source_invitation_id"?: string | null,"coowner_source_member_id"?: string | null,"created_at"?: string,"expires_at"?: string,"id"?: string,"invited_email": string,"invited_name": string,"invited_phone": string,"late_join"?: boolean,"payout_position"?: number | null,"status"?: Database["public"]['Enums']["invitation_status"],"token_hash": string
                   }
                   Update: {
-                    "accepted_at"?: string | null,"accepted_by"?: string | null,"chitti_id"?: string,"coowner_share_bps"?: number | null,"coowner_source_member_id"?: string | null,"created_at"?: string,"expires_at"?: string,"id"?: string,"invited_email"?: string,"invited_name"?: string,"invited_phone"?: string,"late_join"?: boolean,"payout_position"?: number | null,"status"?: Database["public"]['Enums']["invitation_status"],"token_hash"?: string
+                    "accepted_at"?: string | null,"accepted_by"?: string | null,"chitti_id"?: string,"coowner_amount_paise"?: number | null,"coowner_share_bps"?: number | null,"coowner_source_invitation_id"?: string | null,"coowner_source_member_id"?: string | null,"created_at"?: string,"expires_at"?: string,"id"?: string,"invited_email"?: string,"invited_name"?: string,"invited_phone"?: string,"late_join"?: boolean,"payout_position"?: number | null,"status"?: Database["public"]['Enums']["invitation_status"],"token_hash"?: string
                   }
                   Relationships: [
                     {
@@ -146,6 +146,12 @@ isOneToOne: false
       columns: ["chitti_id"]
 isOneToOne: false
       referencedRelation: "chittis"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "invitations_coowner_source_invitation_id_fkey"
+      columns: ["coowner_source_invitation_id"]
+isOneToOne: false
+      referencedRelation: "invitations"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "invitations_coowner_source_member_id_fkey"
@@ -423,7 +429,13 @@ isOneToOne: false
 "add_chitti_member_invitation":
 { Args: { "p_chitti_id": string,"p_email": string,"p_name": string,"p_phone": string }; Returns: Json
                            },
+"add_coowner_amount_invitation":
+{ Args: { "p_amount_paise": number,"p_chitti_id": string,"p_email": string,"p_name": string,"p_phone": string,"p_source_invitation_id"?: string,"p_source_member_id": string }; Returns: Json
+                           },
 "add_coowner_invitation":
+{ Args: { "p_chitti_id": string,"p_email": string,"p_name": string,"p_phone": string,"p_share_bps": number,"p_source_invitation_id"?: string,"p_source_member_id": string }; Returns: Json
+                           },
+"add_coowner_invitation_active":
 { Args: { "p_chitti_id": string,"p_email": string,"p_name": string,"p_phone": string,"p_share_bps": number,"p_source_member_id": string }; Returns: Json
                            },
 "add_imported_chitti_invitation":
@@ -450,6 +462,9 @@ isOneToOne: false
 "convert_pending_chitti_to_existing":
 { Args: { "p_chitti_id": string,"p_completed_months": number,"p_order": Json }; Returns: undefined
                            },
+"convert_pending_chitti_without_shares":
+{ Args: { "p_chitti_id": string,"p_completed_months": number,"p_order": Json }; Returns: undefined
+                           },
 "create_chitti":
 { Args: { "input": Json }; Returns: Json
                            },
@@ -460,6 +475,12 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
 "get_app_snapshot":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"get_app_snapshot_before_amount_shares":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"get_app_snapshot_before_pending_shares":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
 "get_app_snapshot_without_existing_chitti_imports":
@@ -505,6 +526,9 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
 "redeem_invitation":
+{ Args: { "p_invitation_id"?: string,"p_token"?: string }; Returns: string
+                           },
+"redeem_invitation_before_pending_shares":
 { Args: { "p_invitation_id"?: string,"p_token"?: string }; Returns: string
                            },
 "regenerate_invitation":

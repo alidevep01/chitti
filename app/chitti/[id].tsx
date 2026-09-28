@@ -13,6 +13,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { RankingList } from '@/components/RankingList';
 import { moveRankingItem, rankingChanged, rankingSaveError } from '@/domain/ranking';
 import { importedMemberError, importedMemberPositions } from '@/domain/importedMembers';
+import { manualRankingEntries, parseShareAmount, sharedPositionError, sharedPositionSources } from '@/domain/sharedPositions';
 import { useApp } from '@/data/AppProvider';
 import type { ChittiInvitation, ManualPayoutOrderItem, PaymentMethod } from '@/domain/types';
 import { env } from '@/lib/env';
@@ -31,9 +32,10 @@ export default function ChittiDetailScreen() {
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [editInvitationId, setEditInvitationId] = useState<string>();
   const [swapOpen, setSwapOpen] = useState(false);
-  const [coOwnerOpen, setCoOwnerOpen] = useState(false);
+  const [memberMode, setMemberMode] = useState('full');
   const [coOwnerSourceId, setCoOwnerSourceId] = useState('');
-  const [coOwnerSharePercent, setCoOwnerSharePercent] = useState('50');
+  const [coOwnerAmount, setCoOwnerAmount] = useState('');
+  const [memberFormError, setMemberFormError] = useState('');
   const [existingConversionEnabled, setExistingConversionEnabled] = useState(false);
   const [completedMonths, setCompletedMonths] = useState('0');
   const [manualOrder, setManualOrder] = useState<(ManualPayoutOrderItem & { name: string; detail: string; previousPosition?: number })[]>([]);
@@ -73,19 +75,19 @@ export default function ChittiDetailScreen() {
     && member.payoutPosition
     && chitti.members.filter((candidate) => candidate.payoutPosition === member.payoutPosition).length === 1
     && chitti.rounds.some((round) => round.number === member.payoutPosition && round.status !== 'completed' && round.payoutStatus !== 'paid'));
-  const eligibleShareOwners = chitti.members.filter((member) => member.payoutPosition
-    && (member.contributionShareBps ?? 10000) > 1
-    && chitti.rounds.some((round) => round.number === member.payoutPosition && round.status !== 'completed' && round.payoutStatus !== 'paid'));
+  const eligibleShareOwners = sharedPositionSources(chitti);
+  const selectedShareOwner = eligibleShareOwners.find((owner) => owner.key === coOwnerSourceId);
+  const shareAmountPaise = parseShareAmount(coOwnerAmount);
   const availableImportedPositions = importedMemberPositions(chitti);
   const addingImportedPosition = chitti.isImported && chitti.status === 'inviting';
   const extendingImportedSchedule = addingImportedPosition && availableImportedPositions[0] === chitti.memberCount + 1;
-  const canAddMember = currentUser.role === 'admin'
+  const canAddFullMember = currentUser.role === 'admin'
     && !['completed', 'cancelled'].includes(chitti.status)
     && (!chitti.isImported || chitti.status === 'active' || (addingImportedPosition && availableImportedPositions.length > 0));
+  const canAddMember = canAddFullMember || (currentUser.role === 'admin' && eligibleShareOwners.length > 0);
   const canCancelChitti = currentUser.role === 'admin' && ['draft', 'inviting', 'ready', 'shuffle_scheduled', 'awaiting_approval'].includes(chitti.status);
   const canEditPendingOrder = canCancelChitti && chitti.rounds.length === 0;
-  const expectedManualOrderCount = chitti.members.filter((member) => !member.isAdmin).length
-    + (chitti.invitations ?? []).filter((invitation) => invitation.status === 'pending').length;
+  const expectedManualOrderCount = manualRankingEntries(chitti).length;
   const roster = [
     ...chitti.members.map((member) => ({ kind: 'member' as const, value: member })),
     ...(currentUser.role === 'admin' ? (chitti.invitations ?? []).filter((invite) => invite.status === 'pending').map((invite) => ({ kind: 'invitation' as const, value: invite })) : []),
@@ -110,7 +112,6 @@ export default function ChittiDetailScreen() {
   }), { onTime: 0, late: 0, missed: 0 });
 
   const invitationUrl = (token: string) => `${env.appUrl}/invite?token=${encodeURIComponent(token)}`;
-  const invitationMessage = (memberName: string, email: string, token: string) => `Hi ${memberName},\n\nYou are privately invited to join ${chitti.name} on Chitti. Sign in using this Google email: ${email}\n\nOpen your invitation: ${invitationUrl(token)}`;
 
   const shareInvite = async (memberName: string, token?: string) => {
     const actualToken = token ?? `demo-${encodeURIComponent(chitti.id)}-${encodeURIComponent(memberName)}`;
@@ -118,22 +119,7 @@ export default function ChittiDetailScreen() {
     await Share.share({ title: `Join ${chitti.name}`, message: `Hi ${memberName}, you are privately invited to join ${chitti.name} on Chitti. Open this unique link: ${url}`, url });
   };
 
-  const emailInvite = async (memberName: string, email: string, token: string) => {
-    const subject = `Invitation to join ${chitti.name} on Chitti`;
-    const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(invitationMessage(memberName, email, token))}`;
-    await Linking.openURL(mailto);
-  };
-
   const ensureInvitationToken = async (invitationId: string) => inviteLinks[invitationId] ?? regenerateInvitation(invitationId);
-
-  const emailPendingInvitation = async (invitation: ChittiInvitation) => {
-    try {
-      const token = await ensureInvitationToken(invitation.id);
-      await emailInvite(invitation.name, invitation.email, token);
-    } catch {
-      setMessage('Could not open an email app. You can still use Share link.');
-    }
-  };
 
   const sharePendingInvitation = async (invitation: ChittiInvitation) => {
     try {
@@ -158,10 +144,17 @@ export default function ChittiDetailScreen() {
     setMemberEmail('');
     setMemberPhone('');
     setMemberPayoutPosition('');
+    setMemberMode('full');
+    setCoOwnerSourceId('');
+    setCoOwnerAmount('');
+    setMemberFormError('');
   };
 
   const openMemberForm = () => {
+    setMemberFormError('');
     setMemberPayoutPosition(addingImportedPosition ? String(availableImportedPositions[0] ?? '') : '');
+    setMemberMode(canAddFullMember ? 'full' : 'shared');
+    setCoOwnerSourceId(eligibleShareOwners[0]?.key ?? '');
     setAddMemberOpen(true);
   };
 
@@ -227,11 +220,6 @@ export default function ChittiDetailScreen() {
         const result = await addImportedMemberInvitation(chitti.id, member, payoutPosition);
         closeMemberForm();
         setMessage(`Invitation created for payout month ${result.payoutPosition}.${extendingImportedSchedule ? ' The total months and end date have been updated; the existing ranking is unchanged.' : ''}`);
-        try {
-          await emailInvite(member.name, member.email, result.token);
-        } catch {
-          setMessage('Invitation created. You can email or share it from Pending invitations.');
-        }
         return;
       }
       const result = await addMemberInvitation(chitti.id, member);
@@ -240,12 +228,7 @@ export default function ChittiDetailScreen() {
         ? 'Late-member invitation created. Their payout will be added as the final month after they join.'
         : result.shuffleReset
           ? 'Invitation created. The unfinished shuffle was cancelled; shuffle again after the member joins.'
-          : 'Member invitation created.');
-      try {
-        await emailInvite(member.name, member.email, result.token);
-      } catch {
-        setMessage('Invitation created. You can email or share it from Pending invitations.');
-      }
+          : 'Member invitation created. Use Share link in Members to send it through WhatsApp.');
     } catch (value) {
       setMessage(addingImportedPosition ? importedMemberError(value) : value && typeof value === 'object' && 'message' in value ? String(value.message) : 'Could not add this member.');
     } finally { setBusy(false); }
@@ -275,7 +258,7 @@ export default function ChittiDetailScreen() {
         phone: memberPhone.trim(),
       });
       closeMemberForm();
-      setMessage('Invitation updated. The previous link no longer works. Use Email invite to send the new link.');
+      setMessage('Invitation updated. The previous link no longer works. Use Share link to send the new link.');
     } catch (value) {
       setMessage(value && typeof value === 'object' && 'message' in value ? String(value.message) : 'Could not update this invitation.');
     } finally { setBusy(false); }
@@ -294,50 +277,27 @@ export default function ChittiDetailScreen() {
   };
 
   const createCoOwnerInvitation = async () => {
-    const source = chitti.members.find((member) => member.id === coOwnerSourceId);
-    const sharePercent = Number(coOwnerSharePercent);
-    const shareBps = Math.round(sharePercent * 100);
-    if (!source?.payoutPosition) return setMessage('Choose the existing owner whose share will be split.');
-    if (!Number.isFinite(sharePercent) || shareBps < 1 || shareBps >= (source.contributionShareBps ?? 10000)) {
-      return setMessage(`Enter a share below ${((source.contributionShareBps ?? 10000) / 100).toFixed(2)}%.`);
+    const source = selectedShareOwner;
+    if (!source?.payoutPosition) return setMemberFormError('Choose the existing owner whose amount will be split.');
+    if (!shareAmountPaise || shareAmountPaise >= source.availableAmountPaise) {
+      return setMemberFormError(`Enter a positive monthly amount below ${formatINR(source.availableAmountPaise)}, with at most two decimal places. Leave at least ₹0.01 for the original owner.`);
     }
     if (memberName.trim().length < 2 || !memberEmail.includes('@') || memberPhone.trim().length < 8) {
-      return setMessage('Enter a valid name, email, and phone number.');
+      return setMemberFormError('Enter this co-owner’s name, Google sign-in email, and phone number. Each person needs their own invitation.');
     }
+    setMemberFormError('');
     setBusy(true);
     try {
       const member = { name: memberName.trim(), email: memberEmail.trim(), phone: memberPhone.trim() };
-      const result = await addCoOwnerInvitation(chitti.id, source.id, shareBps, member);
-      setCoOwnerOpen(false);
-      setCoOwnerSourceId('');
-      setMemberName(''); setMemberEmail(''); setMemberPhone('');
-      setMessage(`Shared invitation created for month ${result.payoutPosition} (${(result.shareBps / 100).toFixed(2)}%).`);
-      try { await emailInvite(member.name, member.email, result.token); }
-      catch { setMessage('Shared invitation created. You can email or share it from Pending invitations.'); }
+      const result = await addCoOwnerInvitation(chitti.id, source, shareAmountPaise, member);
+      closeMemberForm();
+      setMessage(`Shared invitation created for month ${result.payoutPosition} (${formatINR(result.amountPaise)}/month). Use Share link in Members to send it through WhatsApp. Add another co-owner by selecting the same original owner again.`);
     } catch (value) {
-      setMessage(value && typeof value === 'object' && 'message' in value ? String(value.message) : 'Could not create the shared invitation.');
+      setMemberFormError(sharedPositionError(value));
     } finally { setBusy(false); }
   };
 
-  const buildManualOrder = () => {
-    const joined = chitti.members.filter((member) => !member.isAdmin).map((member) => ({
-      kind: 'member' as const,
-      id: member.id,
-      name: member.name,
-      detail: member.email,
-      previousPosition: member.payoutPosition,
-    }));
-    const invited = (chitti.invitations ?? []).filter((invitation) => invitation.status === 'pending').map((invitation) => ({
-      kind: 'invitation' as const,
-      id: invitation.id,
-      name: invitation.name,
-      detail: invitation.email,
-      previousPosition: invitation.payoutPosition,
-    }));
-    return [...joined, ...invited].sort((first, second) =>
-      (first.previousPosition ?? Number.MAX_SAFE_INTEGER) - (second.previousPosition ?? Number.MAX_SAFE_INTEGER)
-      || first.name.localeCompare(second.name));
-  };
+  const buildManualOrder = () => manualRankingEntries(chitti);
 
   const toggleExistingConversion = () => {
     const next = !existingConversionEnabled;
@@ -398,7 +358,7 @@ export default function ChittiDetailScreen() {
       <Card mode="contained" style={{ backgroundColor: theme.colors.primaryContainer }}><Card.Content style={styles.hero}>
         <View style={styles.rowBetween}><StatusPill status={chitti.status} /><Text variant="labelLarge">{chitti.memberCount} months</Text></View>
         <Text variant="headlineMedium" style={styles.amount}>{formatINR(chitti.monthlyAmountPaise * chitti.memberCount)}</Text>
-        <Text variant="bodyLarge">Monthly pot · {formatINR(chitti.monthlyAmountPaise)} from each member</Text>
+        <Text variant="bodyLarge">Monthly pot · {formatINR(chitti.monthlyAmountPaise)} per payout position, split between its owners</Text>
         {chitti.description ? <Text>{chitti.description}</Text> : null}
       </Card.Content></Card>
 
@@ -412,7 +372,7 @@ export default function ChittiDetailScreen() {
         <View style={styles.iconTitle}><Icon source="history" size={26} color={theme.colors.primary} /><Text variant="titleLarge" style={styles.heading}>Existing chitti</Text></View>
         <Text>{chitti.importedCompletedMonths ?? 0} of {chitti.memberCount} months were marked completed when this chitti was added. Its saved payout order is used without a shuffle.</Text>
         <Text>Earlier individual payments are unassessed, so they do not increase missed-due counts or reduce anyone’s reliability score.</Text>
-        {chitti.status === 'inviting' && availableImportedPositions.length > 0 ? <Text variant="titleMedium">Unassigned payout months: {availableImportedPositions.join(', ')}</Text> : null}
+        {chitti.status === 'inviting' && availableImportedPositions.some((position) => position <= chitti.memberCount) ? <Text variant="titleMedium">Unassigned payout months: {availableImportedPositions.filter((position) => position <= chitti.memberCount).join(', ')}</Text> : null}
       </Card.Content></Card> : null}
 
       {canEditPendingOrder ? <Card mode="outlined"><Card.Content style={styles.section}>
@@ -479,7 +439,7 @@ export default function ChittiDetailScreen() {
             <Text variant="labelLarge">MONTH {currentRound.number} OF {chitti.memberCount}</Text>
             {(currentRound.payoutShares?.length ?? 0) > 1 ? <View style={styles.section}>
               <Text variant="bodyMedium">Current co-owners</Text>
-              {currentRound.payoutShares?.map((share) => { const recipient = chitti.members.find((member) => member.id === share.recipientMemberId); return <View key={share.id} style={styles.rowBetween}><View style={styles.recipient}><UserAvatar name={recipient?.name ?? '?'} uri={recipient?.avatarUri} size={42} /><View><Text variant="titleMedium">{recipient?.name}</Text><Text>{formatINR(share.amountPaise)} · {(share.shareBps / 100).toFixed(2)}%</Text></View></View><StatusPill status={share.status} /></View>; })}
+              {currentRound.payoutShares?.map((share) => { const recipient = chitti.members.find((member) => member.id === share.recipientMemberId); return <View key={share.id} style={styles.rowBetween}><View style={styles.recipient}><UserAvatar name={recipient?.name ?? '?'} uri={recipient?.avatarUri} size={42} /><View><Text variant="titleMedium">{recipient?.name}</Text><Text>{formatINR(share.amountPaise)} payout</Text></View></View><StatusPill status={share.status} /></View>; })}
             </View> : <View style={styles.recipient}><UserAvatar name={currentRecipient?.name ?? '?'} uri={currentRecipient?.avatarUri} size={52} /><View style={styles.grow}><Text variant="bodyMedium">Current recipient</Text><Text variant="headlineSmall" style={styles.heading}>{currentRecipient?.name}</Text></View></View>}
             <View style={styles.rowBetween}><Text>Due {formatDate(currentRound.dueDate)}</Text><Text>{confirmed}/{currentRound.contributions.length} confirmed</Text></View>
             <View style={styles.progressTrack}><ProgressBar progress={confirmed / Math.max(1, currentRound.contributions.length)} style={styles.progress} /></View>
@@ -542,8 +502,8 @@ export default function ChittiDetailScreen() {
       </Card.Content></Card> : null}
 
       <Card mode="outlined"><Card.Content style={styles.section}>
-        <View style={styles.rowBetween}><Text variant="titleLarge" style={styles.heading}>Members</Text><Text>{chitti.members.filter((item) => item.joined).length}/{chitti.memberCount} joined</Text></View>
-        {canAddMember ? <View style={styles.memberActions}><Button icon="account-plus" mode="contained-tonal" onPress={openMemberForm}>Add member</Button>{chitti.status === 'active' && eligibleShareOwners.length > 0 ? <Button icon="account-multiple-plus" mode="outlined" onPress={() => { setCoOwnerSourceId(eligibleShareOwners[0]?.id ?? ''); setCoOwnerOpen(true); }}>Add co-owner</Button> : null}{chitti.status === 'active' && swappableMembers.length >= 2 ? <Button icon="swap-horizontal" mode="outlined" onPress={() => setSwapOpen(true)}>Swap months</Button> : null}</View> : null}
+        <View style={styles.rowBetween}><Text variant="titleLarge" style={styles.heading}>Members</Text><Text>{chitti.members.filter((item) => item.joined).length} joined · {chitti.memberCount} payout months</Text></View>
+        {canAddMember ? <View style={styles.memberActions}><Button icon="account-plus" mode="contained-tonal" onPress={openMemberForm}>Add member</Button>{eligibleShareOwners.length > 0 ? <Button icon="account-multiple-plus" mode="outlined" onPress={() => { openMemberForm(); setMemberMode('shared'); }}>Add co-owner</Button> : null}{chitti.status === 'active' && swappableMembers.length >= 2 ? <Button icon="swap-horizontal" mode="outlined" onPress={() => setSwapOpen(true)}>Swap months</Button> : null}</View> : null}
         {currentUser.role === 'admin' && addingImportedPosition && availableImportedPositions.length === 0 ? <Text variant="bodySmall">All 50 payout months are assigned. This chitti has reached the member limit.</Text> : null}
         {roster.map((entry, index) => {
           const person = entry.value;
@@ -556,19 +516,17 @@ export default function ChittiDetailScreen() {
                 <View style={styles.grow}>
                   <Text variant="titleMedium">{person.name}{entry.kind === 'member' && entry.value.isAdmin ? ' · Admin' : ''}</Text>
                   <Text>{person.payoutPosition ? `Payout month ${person.payoutPosition}` : 'Month not assigned'}</Text>
-                  {entry.kind === 'member' && (entry.value.contributionShareBps ?? 10000) < 10000 ? <Text>{((entry.value.contributionShareBps ?? 10000) / 100).toFixed(2)}% share</Text> : null}
-                  {entry.kind === 'invitation' ? <><Text>{entry.value.email} · {entry.value.phone}</Text>{entry.value.coOwnerShareBps ? <Text>{(entry.value.coOwnerShareBps / 100).toFixed(2)}% co-owner</Text> : null}</> : null}
+                  {entry.kind === 'member' && (entry.value.contributionAmountPaise ?? chitti.monthlyAmountPaise) < chitti.monthlyAmountPaise ? <Text>{formatINR(entry.value.contributionAmountPaise!)}/month · Shared position</Text> : null}
+                  {entry.kind === 'invitation' ? <><Text>{entry.value.email} · {entry.value.phone}</Text>{entry.value.coOwnerAmountPaise ? <Text>{formatINR(entry.value.coOwnerAmountPaise)}/month · Co-owner</Text> : null}</> : null}
                 </View>
               </View>
               <View style={[styles.rosterControls, compactRoster && styles.compactRosterControls]}>
                 <StatusPill iconOnly={compactRoster} status={entry.kind === 'member' && entry.value.joined ? 'accepted' : 'pending_invitation'} />
                 {entry.kind === 'invitation' ? compactRoster ? <View style={styles.inviteActions}>
                   <Tooltip title="Edit invitation"><IconButton icon="pencil-outline" size={22} iconColor={brandColors.black} style={styles.compactAction} accessibilityLabel={`Edit invitation for ${person.name}`} onPress={() => openEditInvitation(entry.value)} /></Tooltip>
-                  <Tooltip title="Email invite"><IconButton icon="email-outline" mode="contained-tonal" size={22} iconColor={brandColors.black} style={styles.compactAction} accessibilityLabel={`Email invitation to ${person.name}`} onPress={() => void emailPendingInvitation(entry.value)} /></Tooltip>
                   <Tooltip title="Share link"><IconButton icon="share-variant" size={22} iconColor={brandColors.black} style={styles.compactAction} accessibilityLabel={`Share invitation link for ${person.name}`} onPress={() => void sharePendingInvitation(entry.value)} /></Tooltip>
                 </View> : <View style={styles.inviteActions}>
                   <Button compact textColor={brandColors.black} icon="pencil-outline" onPress={() => openEditInvitation(entry.value)}>Edit</Button>
-                  <Button compact icon="email-outline" mode="contained-tonal" onPress={() => void emailPendingInvitation(entry.value)}>Email invite</Button>
                   <Button compact textColor={brandColors.black} icon="share-variant" onPress={() => void sharePendingInvitation(entry.value)}>Share link</Button>
                 </View> : demoMode && currentUser.role === 'admin' && !entry.value.isAdmin && chitti.status !== 'active' ? <Button compact icon="share-variant" onPress={() => void shareInvite(person.name)}>Share</Button> : null}
               </View>
@@ -587,7 +545,17 @@ export default function ChittiDetailScreen() {
       {['active', 'completed'].includes(chitti.status) && chitti.rounds.length > 0 ? <Card mode="outlined"><Card.Content style={styles.section}><Text variant="titleLarge" style={styles.heading}>Schedule</Text>{chitti.rounds.map((round, index) => { const recipients = round.payoutShares?.map((share) => chitti.members.find((member) => member.id === share.recipientMemberId)?.name).filter(Boolean); const recipient = chitti.members.find((member) => member.id === round.recipientMemberId); return <View key={round.id}>{index ? <Divider style={styles.divider} /> : null}<View style={styles.rowBetween}><View><Text variant="titleMedium">Month {round.number} · {recipients?.length ? recipients.join(' + ') : recipient?.name}</Text><Text>{formatDate(round.dueDate)}</Text></View><StatusPill status={round.status === 'completed' ? 'completed' : round.status} /></View></View>; })}<Text>{chitti.memberCount - completed} months remaining</Text></Card.Content></Card> : null}
 
       <Portal><Dialog visible={addMemberOpen} onDismiss={closeMemberForm} style={styles.dialog}><Dialog.Title>Add a member</Dialog.Title><Dialog.ScrollArea><ScrollView contentContainerStyle={styles.paymentContent}>
-        <Text>{addingImportedPosition
+        {(addingImportedPosition || chitti.status === 'active') ? <SegmentedButtons value={memberMode} onValueChange={setMemberMode} buttons={[{ value: 'full', label: 'Full position', disabled: !canAddFullMember }, { value: 'shared', label: 'Shared position' }]} /> : null}
+        {memberMode === 'shared' ? <>
+          <Text variant="titleMedium">Share an existing position</Text>
+          <Text>Choose the owner whose monthly amount will be split. There is no fixed limit on co-owners. Their amounts must add up to {formatINR(chitti.monthlyAmountPaise)} for this position. The total months and monthly pot stay unchanged.</Text>
+          {eligibleShareOwners.length === 0 ? <Text>No position is currently available to share. An owner must have an unpaid payout and enough unreserved contribution left.</Text> : null}
+          {eligibleShareOwners.map((owner) => <Button key={owner.key} mode={coOwnerSourceId === owner.key ? 'contained-tonal' : 'outlined'} onPress={() => setCoOwnerSourceId(owner.key)}>{owner.name} · Month {owner.payoutPosition} · {owner.kind === 'invitation' ? 'Invited' : 'Joined'}</Button>)}
+          <TextInput mode="outlined" label="New co-owner monthly amount (₹)" value={coOwnerAmount} onChangeText={setCoOwnerAmount} keyboardType="decimal-pad" />
+          {selectedShareOwner ? <Text>{formatINR(selectedShareOwner.availableAmountPaise)} is available from this owner, after other invitations. {shareAmountPaise && shareAmountPaise < selectedShareOwner.availableAmountPaise ? `New co-owner: ${formatINR(shareAmountPaise)}/month. Original owner remaining: ${formatINR(selectedShareOwner.availableAmountPaise - shareAmountPaise)}/month.` : ''}</Text> : null}
+          <Text variant="bodySmall">Add one person at a time. To add more, create their invitation, reopen Add co-owner, and select the same original owner. For thirds of ₹20,000, enter ₹6,666.67 for each of two co-owners; the original owner keeps ₹6,666.66.</Text>
+          <Text variant="bodySmall">Each co-owner receives a private invitation. You confirm their proportional payouts separately. Co-owners move together when the ranking changes.</Text>
+        </> : <Text>{addingImportedPosition
           ? extendingImportedSchedule
             ? `All ${chitti.memberCount} positions are assigned. This invitation adds payout month ${chitti.memberCount + 1}, increasing the total months and monthly pot and extending the end date to ${formatDate(addMonthsClamped(chitti.firstDueDate, chitti.memberCount))}. The contribution per member, existing ranking, and recorded completed months stay unchanged.`
             : 'Assign this member to one of the payout months that is still empty. The total number of months will not change.'
@@ -595,23 +563,14 @@ export default function ChittiDetailScreen() {
           ? 'After joining, this member receives the final payout month and owes every elapsed contribution.'
           : ['shuffle_scheduled', 'awaiting_approval'].includes(chitti.status)
             ? 'Adding a member will cancel the unfinished shuffle. Shuffle everyone again after the new member joins.'
-            : 'The member will join through a private invitation.'}</Text>
+            : 'The member will join through a private invitation.'}</Text>}
         <TextInput mode="outlined" label="Full name" value={memberName} onChangeText={setMemberName} />
         <TextInput mode="outlined" label="Google email" value={memberEmail} onChangeText={setMemberEmail} autoCapitalize="none" keyboardType="email-address" />
+        <Text variant="bodySmall">Email identifies the Google account allowed to join; no email invitation is sent. Use Share link to send the invitation through WhatsApp.</Text>
         <TextInput mode="outlined" label="Phone number" value={memberPhone} onChangeText={setMemberPhone} keyboardType="phone-pad" />
-        {addingImportedPosition ? <><TextInput mode="outlined" label="Payout month" value={memberPayoutPosition} onChangeText={(value) => /^\d*$/.test(value) && setMemberPayoutPosition(value)} keyboardType="numeric" editable={!extendingImportedSchedule} /><Text variant="bodySmall">{extendingImportedSchedule ? 'The new member starts at the last position. You can edit the payout ranking before activation.' : `Available months: ${availableImportedPositions.join(', ')}`}</Text></> : null}
-      </ScrollView></Dialog.ScrollArea><Dialog.Actions><Button onPress={closeMemberForm}>Cancel</Button><Button mode="contained" loading={busy} disabled={busy} onPress={() => void addMember()}>Create invitation</Button></Dialog.Actions></Dialog></Portal>
-
-      <Portal><Dialog visible={coOwnerOpen} onDismiss={() => setCoOwnerOpen(false)} style={styles.dialog}><Dialog.Title>Add a payout co-owner</Dialog.Title><Dialog.ScrollArea><ScrollView contentContainerStyle={styles.paymentContent}>
-        <Text>Select the existing owner whose contribution and payout will be split. The two shares remain in the same payout month.</Text>
-        <Text variant="titleMedium">Existing owner</Text>
-        {eligibleShareOwners.map((owner) => <Button key={owner.id} mode={coOwnerSourceId === owner.id ? 'contained-tonal' : 'text'} onPress={() => setCoOwnerSourceId(owner.id)}>{owner.name} · Month {owner.payoutPosition} · {((owner.contributionShareBps ?? 10000) / 100).toFixed(2)}%</Button>)}
-        <TextInput mode="outlined" label="New co-owner share (%)" value={coOwnerSharePercent} onChangeText={(value) => /^\d*(\.\d{0,2})?$/.test(value) && setCoOwnerSharePercent(value)} keyboardType="decimal-pad" />
-        <TextInput mode="outlined" label="Full name" value={memberName} onChangeText={setMemberName} />
-        <TextInput mode="outlined" label="Google email" value={memberEmail} onChangeText={setMemberEmail} autoCapitalize="none" keyboardType="email-address" />
-        <TextInput mode="outlined" label="Phone number" value={memberPhone} onChangeText={setMemberPhone} keyboardType="phone-pad" />
-        <Text variant="bodySmall">After this person accepts, both owners pay their own proportional contribution. When their payout month arrives, you confirm each payout separately.</Text>
-      </ScrollView></Dialog.ScrollArea><Dialog.Actions><Button onPress={() => setCoOwnerOpen(false)}>Cancel</Button><Button mode="contained" loading={busy} disabled={busy || !coOwnerSourceId} onPress={() => void createCoOwnerInvitation()}>Create shared invitation</Button></Dialog.Actions></Dialog></Portal>
+        {memberMode === 'full' && addingImportedPosition ? <><TextInput mode="outlined" label="Payout month" value={memberPayoutPosition} onChangeText={(value) => /^\d*$/.test(value) && setMemberPayoutPosition(value)} keyboardType="numeric" editable={!extendingImportedSchedule} /><Text variant="bodySmall">{extendingImportedSchedule ? 'The new member starts at the last position. You can edit the payout ranking before activation.' : `Available months: ${availableImportedPositions.join(', ')}`}</Text></> : null}
+        {memberFormError ? <Text accessibilityRole="alert">{memberFormError}</Text> : null}
+      </ScrollView></Dialog.ScrollArea><Dialog.Actions><Button onPress={closeMemberForm}>Cancel</Button><Button mode="contained" loading={busy} disabled={busy || (memberMode === 'shared' && !selectedShareOwner)} onPress={() => void (memberMode === 'shared' ? createCoOwnerInvitation() : addMember())}>{memberMode === 'shared' ? 'Create shared invitation' : 'Create invitation'}</Button></Dialog.Actions></Dialog></Portal>
 
       <Portal><Dialog visible={cancelOpen} onDismiss={() => setCancelOpen(false)} style={styles.dialog}><Dialog.Title>Delete this pending chitti?</Dialog.Title><Dialog.Content style={styles.section}>
         <Text>This removes it from everyone’s dashboard and revokes all pending invitation links. Active and completed chittis cannot be deleted.</Text>

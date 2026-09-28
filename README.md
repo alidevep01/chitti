@@ -67,6 +67,16 @@ From the **Members** card, choose **Add member**. Empty planned payout months ar
 
 This requires `202609270001_expand_pending_existing_chitti.sql`. Apply locally with `npx supabase migration up --local`, then run `npm run supabase:types` and `npm run test:db`. Apply pending migrations to the hosted project with `npx supabase db push` (use the password-based connection if required) **before** building and deploying the new website. Do not reset a database containing real users.
 
+### Sharing a payout position before activation
+
+In a pending existing chitti, choose **Members → Add member → Shared position** (or **Add co-owner**). Select a joined owner or a pending main-owner invitation, enter the new person's monthly rupee amount and contact details, then create their invitation. For a ₹20,000 position, assigning ₹5,000 leaves ₹15,000 for the main owner. There is no fixed co-owner count limit; each owner must retain at least ₹0.01. This does not add months or increase the pot. Add people individually, selecting the same original owner again to allocate another amount. For thirds of ₹20,000, two co-owners at ₹6,666.67 leave ₹6,666.66 for the main owner.
+
+Co-owners may accept in any order. All pending invitations must be accepted before activation, with each position's amounts totaling its monthly contribution. Ranking edits move co-owners together; the administrator's group stays at month 1. Future contributions and payouts use exact paise amounts, and the administrator confirms each owner's payout separately. Historical completed months remain historical, without invented contribution records. Active positions can be split only while the source owner's payout is unpaid and their outstanding contributions have not been submitted or confirmed.
+
+Apply all pending migrations through `202609270003_amount_based_coowners.sql` locally with `npx supabase migration up --local`, and to your linked hosted database with `npx supabase db push` (not `--dry-run`) before deploying the web build. No database reset is needed. `npm run test:db` also runs the shared-position regression suites via its post-test hook.
+
+Invitations use **Share link**, including WhatsApp through the device share menu. There are no email-invite buttons or automatic email prompts. The Google email field remains required to restrict acceptance to the correct signed-in account.
+
 ### Web Push
 
 Generate VAPID keys and set `EXPO_PUBLIC_VAPID_PUBLIC_KEY` in the web build. Add the following server-only Supabase function secrets:

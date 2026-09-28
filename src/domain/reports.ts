@@ -25,7 +25,7 @@ export function buildDemoReports(currentUser: UserProfile, chittis: Chitti[], to
         chittiId: chitti.id,
         name: chitti.name,
         status: chitti.status,
-        monthlyAmountPaise: Math.floor(chitti.monthlyAmountPaise * (membership?.contributionShareBps ?? 10000) / 10000),
+        monthlyAmountPaise: membership?.contributionAmountPaise ?? Math.floor(chitti.monthlyAmountPaise * (membership?.contributionShareBps ?? 10000) / 10000),
         totalAmountPaise: chitti.monthlyAmountPaise * chitti.memberCount,
         startDate: chitti.startDate,
         endDate: chitti.endDate,

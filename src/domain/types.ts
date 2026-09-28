@@ -30,6 +30,7 @@ export interface ChittiMember {
   joined: boolean;
   payoutPosition?: number;
   contributionShareBps?: number;
+  contributionAmountPaise?: number;
   approval: ApprovalStatus;
   approvalReason?: string;
   isAdmin?: boolean;
@@ -119,7 +120,9 @@ export interface ChittiInvitation {
   lateJoin?: boolean;
   payoutPosition?: number;
   coOwnerSourceMemberId?: string;
+  coOwnerSourceInvitationId?: string;
   coOwnerShareBps?: number;
+  coOwnerAmountPaise?: number;
 }
 
 export interface PendingInvitation {

@@ -17,7 +17,7 @@ export default function DashboardScreen() {
   const active = chittis.filter((item) => !['completed', 'cancelled'].includes(item.status));
   const totalMonthly = active.reduce((sum, item) => {
     const membership = item.members.find((member) => member.id === currentUser.id);
-    return sum + Math.floor(item.monthlyAmountPaise * (membership?.contributionShareBps ?? 10000) / 10000);
+    return sum + (membership?.contributionAmountPaise ?? Math.floor(item.monthlyAmountPaise * (membership?.contributionShareBps ?? 10000) / 10000));
   }, 0);
   const upcoming = active.flatMap((item) => item.rounds.filter((round) => round.status === 'collecting').map((round) => ({ item, round })))[0];
 
@@ -50,7 +50,7 @@ export default function DashboardScreen() {
         {pendingInvitations.map((invitation) => <Card key={invitation.id} mode="elevated" style={{ backgroundColor: theme.colors.primaryContainer }}>
           <Card.Content style={styles.cardContent}>
             <View style={styles.rowBetween}><View style={styles.grow}><Text variant="titleLarge" style={styles.cardTitle}>{invitation.chittiName}</Text><Text>Invited by {invitation.administratorName}</Text></View><Icon source="email-fast-outline" size={30} color={theme.colors.primary} /></View>
-            <Text>{invitation.memberCount} payout months · {formatINR(invitation.contributionAmountPaise ?? invitation.monthlyAmountPaise)}/month{invitation.coOwnerShareBps ? ` · ${(invitation.coOwnerShareBps / 100).toFixed(2)}% shared slot` : ''} · {formatINR(invitation.monthlyAmountPaise * invitation.memberCount)} pot</Text>
+            <Text>{invitation.memberCount} payout months · {formatINR(invitation.contributionAmountPaise ?? invitation.monthlyAmountPaise)}/month{invitation.coOwnerShareBps ? ' · Shared position' : ''} · {formatINR(invitation.monthlyAmountPaise * invitation.memberCount)} pot</Text>
             <Button mode="contained" icon="email-open-outline" contentStyle={styles.reportButton} onPress={() => router.push(`/invite?invitation=${invitation.id}`)}>Review and join</Button>
           </Card.Content>
         </Card>)}

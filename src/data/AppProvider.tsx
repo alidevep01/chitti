@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 
 import { assignPayoutPositions, buildRounds, refreshRound } from '@/domain/rules';
 import { importedMemberPositions } from '@/domain/importedMembers';
+import { manualRankingEntries, sharedPositionSources } from '@/domain/sharedPositions';
 import type {
   AppNotification,
   Chitti,
@@ -46,7 +47,7 @@ type AppContextValue = {
   updateInvitation: (chittiId: string, invitationId: string, member: InviteDraft) => Promise<string>;
   addMemberInvitation: (chittiId: string, member: InviteDraft) => Promise<{ invitationId: string; token: string; lateJoin: boolean; shuffleReset: boolean }>;
   addImportedMemberInvitation: (chittiId: string, member: InviteDraft, payoutPosition: number) => Promise<{ invitationId: string; token: string; payoutPosition: number }>;
-  addCoOwnerInvitation: (chittiId: string, sourceMemberId: string, shareBps: number, member: InviteDraft) => Promise<{ invitationId: string; token: string; payoutPosition: number; shareBps: number }>;
+  addCoOwnerInvitation: (chittiId: string, source: ManualPayoutOrderItem, amountPaise: number, member: InviteDraft) => Promise<{ invitationId: string; token: string; payoutPosition: number; amountPaise: number }>;
   convertPendingChittiToExisting: (chittiId: string, completedMonths: number, order: ManualPayoutOrderItem[]) => Promise<void>;
   cancelChitti: (chittiId: string) => Promise<void>;
   swapPayoutMonths: (chittiId: string, firstMemberId: string, secondMemberId: string) => Promise<void>;
@@ -404,32 +405,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { invitationId, token, payoutPosition };
   };
 
-  const addCoOwnerInvitation = async (chittiId: string, sourceMemberId: string, shareBps: number, member: InviteDraft) => {
+  const addCoOwnerInvitation = async (chittiId: string, owner: ManualPayoutOrderItem, amountPaise: number, member: InviteDraft) => {
     if (!env.isDemo) {
-      const { data, error } = await supabase!.rpc('add_coowner_invitation', {
+      const { data, error } = await supabase!.rpc('add_coowner_amount_invitation', {
         p_chitti_id: chittiId,
-        p_source_member_id: sourceMemberId,
-        p_share_bps: shareBps,
+        p_source_member_id: owner.kind === 'member' ? owner.id : null,
+        p_source_invitation_id: owner.kind === 'invitation' ? owner.id : null,
+        p_amount_paise: amountPaise,
         p_name: member.name,
         p_email: member.email,
         p_phone: member.phone,
       });
       if (error) throw error;
-      const result = data as { invitation_id: string; token: string; payout_position: number; share_bps: number };
+      const result = data as { invitation_id: string; token: string; payout_position: number; amount_paise: number };
       setInviteLinks((current) => ({ ...current, [result.invitation_id]: result.token }));
       await reload();
       return {
         invitationId: result.invitation_id,
         token: result.token,
         payoutPosition: result.payout_position,
-        shareBps: result.share_bps,
+        amountPaise: result.amount_paise,
       };
     }
     const invitationId = `coowner-invite-${crypto.randomUUID()}`;
     const token = `demo-${crypto.randomUUID()}`;
     const chitti = state.chittis.find((item) => item.id === chittiId);
-    const source = chitti?.members.find((item) => item.id === sourceMemberId);
+    const source = chitti && sharedPositionSources(chitti).find((item) => item.kind === owner.kind && item.id === owner.id);
     if (!source?.payoutPosition) throw new Error('Choose an owner with a payout month');
+    if (!Number.isSafeInteger(amountPaise) || amountPaise < 1 || amountPaise >= source.availableAmountPaise) throw new Error('Choose an amount smaller than the unreserved amount');
     setInviteLinks((current) => ({ ...current, [invitationId]: token }));
     await persist(updateChitti(state, chittiId, (item) => ({
       ...item,
@@ -438,11 +441,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...member,
         status: 'pending',
         payoutPosition: source.payoutPosition,
-        coOwnerSourceMemberId: sourceMemberId,
-        coOwnerShareBps: shareBps,
+        coOwnerSourceMemberId: owner.kind === 'member' ? owner.id : undefined,
+        coOwnerSourceInvitationId: owner.kind === 'invitation' ? owner.id : undefined,
+        coOwnerShareBps: Math.max(1, Math.floor(amountPaise * 10000 / chitti!.monthlyAmountPaise)),
+        coOwnerAmountPaise: amountPaise,
       }],
     })));
-    return { invitationId, token, payoutPosition: source.payoutPosition, shareBps };
+    return { invitationId, token, payoutPosition: source.payoutPosition, amountPaise };
   };
 
   const convertPendingChittiToExisting = async (chittiId: string, completedMonths: number, order: ManualPayoutOrderItem[]) => {
@@ -463,24 +468,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (chitti.isImported && completedMonths !== (chitti.importedCompletedMonths ?? 0)) {
         throw new Error('Editing the ranking cannot change the imported completed months.');
       }
-      const roster = [
-        ...chitti.members.filter((member) => !member.isAdmin).map((member) => ({ key: `member:${member.id}`, position: member.payoutPosition })),
-        ...(chitti.invitations ?? []).filter((invitation) => invitation.status === 'pending').map((invitation) => ({ key: `invitation:${invitation.id}`, position: invitation.payoutPosition })),
-      ];
+      const roster = manualRankingEntries(chitti).map((entry) => ({ key: `${entry.kind}:${entry.id}`, position: entry.previousPosition }));
       if (order.length !== roster.length || new Set(order.map((item) => `${item.kind}:${item.id}`)).size !== roster.length || order.some((item) => !roster.some((entry) => entry.key === `${item.kind}:${item.id}`))) {
         throw new Error('The roster changed. Reopen the ranking editor and try again.');
       }
       const slots = roster.map((entry) => entry.position).sort((a, b) => (a ?? 0) - (b ?? 0));
       const positions = new Map(order.map((item, index) => [`${item.kind}:${item.id}`, chitti.isImported ? slots[index] : index + 2]));
+      const groupPositions = new Map(roster.map((entry) => [entry.position, positions.get(entry.key)]));
       const members = chitti.members.map((member) => ({
         ...member,
-        payoutPosition: member.isAdmin ? 1 : positions.get(`member:${member.id}`),
+        payoutPosition: member.isAdmin || member.payoutPosition === 1 ? 1 : chitti.isImported ? groupPositions.get(member.payoutPosition) : positions.get(`member:${member.id}`),
         approval: 'accepted' as const,
       }));
-      const invitations = (chitti.invitations ?? []).map((invitation) => invitation.status === 'pending'
-        ? { ...invitation, payoutPosition: positions.get(`invitation:${invitation.id}`) }
+      const invitations = (chitti.invitations ?? []).map((invitation) => ['pending', 'accepted'].includes(invitation.status)
+        ? { ...invitation, payoutPosition: invitation.payoutPosition === 1 ? 1 : chitti.isImported ? groupPositions.get(invitation.payoutPosition) : positions.get(`invitation:${invitation.id}`) }
         : invitation);
-      const everyoneJoined = members.length === chitti.memberCount;
+      const everyoneJoined = new Set(members.map((member) => member.payoutPosition)).size === chitti.memberCount
+        && !invitations.some((invitation) => invitation.status === 'pending');
       return {
         ...chitti,
         isImported: true,
