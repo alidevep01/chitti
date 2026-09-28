@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Image, ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Card, Checkbox, Dialog, Divider, Icon, IconButton, Portal, ProgressBar, SegmentedButtons, Snackbar, Text, TextInput, Tooltip, useTheme } from 'react-native-paper';
 
 import { EmptyState } from '@/components/EmptyState';
@@ -22,7 +23,9 @@ import { brandColors } from '@/theme';
 
 export default function ChittiDetailScreen() {
   const theme = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const memberDialogMaxHeight = Math.max(0, height - insets.top - insets.bottom - 48);
   const compactRoster = width < 600;
   const { id } = useLocalSearchParams<{ id: string }>();
   const { chittis, currentUser, inviteLinks, regenerateInvitation, updateInvitation, addMemberInvitation, addImportedMemberInvitation, addCoOwnerInvitation, convertPendingChittiToExisting, cancelChitti, swapPayoutMonths, scheduleShuffle, submitContribution, getPaymentProofUrl, reviewContribution, confirmPayout, confirmPayoutShare, confirmPayoutAdjustment, demoMode } = useApp();
@@ -544,7 +547,7 @@ export default function ChittiDetailScreen() {
 
       {['active', 'completed'].includes(chitti.status) && chitti.rounds.length > 0 ? <Card mode="outlined"><Card.Content style={styles.section}><Text variant="titleLarge" style={styles.heading}>Schedule</Text>{chitti.rounds.map((round, index) => { const recipients = round.payoutShares?.map((share) => chitti.members.find((member) => member.id === share.recipientMemberId)?.name).filter(Boolean); const recipient = chitti.members.find((member) => member.id === round.recipientMemberId); return <View key={round.id}>{index ? <Divider style={styles.divider} /> : null}<View style={styles.rowBetween}><View><Text variant="titleMedium">Month {round.number} · {recipients?.length ? recipients.join(' + ') : recipient?.name}</Text><Text>{formatDate(round.dueDate)}</Text></View><StatusPill status={round.status === 'completed' ? 'completed' : round.status} /></View></View>; })}<Text>{chitti.memberCount - completed} months remaining</Text></Card.Content></Card> : null}
 
-      <Portal><Dialog visible={addMemberOpen} onDismiss={closeMemberForm} style={styles.dialog}><Dialog.Title>Add a member</Dialog.Title><Dialog.ScrollArea><ScrollView contentContainerStyle={styles.paymentContent}>
+      <Portal><Dialog visible={addMemberOpen} onDismiss={closeMemberForm} style={[styles.dialog, styles.memberDialog, { maxHeight: memberDialogMaxHeight }]}><Dialog.Title style={styles.memberDialogFixed}>Add a member</Dialog.Title><Dialog.ScrollArea style={styles.memberScrollArea}><ScrollView style={styles.memberScrollView} contentContainerStyle={styles.paymentContent} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         {(addingImportedPosition || chitti.status === 'active') ? <SegmentedButtons value={memberMode} onValueChange={setMemberMode} buttons={[{ value: 'full', label: 'Full position', disabled: !canAddFullMember }, { value: 'shared', label: 'Shared position' }]} /> : null}
         {memberMode === 'shared' ? <>
           <Text variant="titleMedium">Share an existing position</Text>
@@ -570,7 +573,7 @@ export default function ChittiDetailScreen() {
         <TextInput mode="outlined" label="Phone number" value={memberPhone} onChangeText={setMemberPhone} keyboardType="phone-pad" />
         {memberMode === 'full' && addingImportedPosition ? <><TextInput mode="outlined" label="Payout month" value={memberPayoutPosition} onChangeText={(value) => /^\d*$/.test(value) && setMemberPayoutPosition(value)} keyboardType="numeric" editable={!extendingImportedSchedule} /><Text variant="bodySmall">{extendingImportedSchedule ? 'The new member starts at the last position. You can edit the payout ranking before activation.' : `Available months: ${availableImportedPositions.join(', ')}`}</Text></> : null}
         {memberFormError ? <Text accessibilityRole="alert">{memberFormError}</Text> : null}
-      </ScrollView></Dialog.ScrollArea><Dialog.Actions><Button onPress={closeMemberForm}>Cancel</Button><Button mode="contained" loading={busy} disabled={busy || (memberMode === 'shared' && !selectedShareOwner)} onPress={() => void (memberMode === 'shared' ? createCoOwnerInvitation() : addMember())}>{memberMode === 'shared' ? 'Create shared invitation' : 'Create invitation'}</Button></Dialog.Actions></Dialog></Portal>
+      </ScrollView></Dialog.ScrollArea><Dialog.Actions style={styles.memberDialogActions}><Button onPress={closeMemberForm}>Cancel</Button><Button mode="contained" loading={busy} disabled={busy || (memberMode === 'shared' && !selectedShareOwner)} onPress={() => void (memberMode === 'shared' ? createCoOwnerInvitation() : addMember())}>{memberMode === 'shared' ? 'Create shared invitation' : 'Create invitation'}</Button></Dialog.Actions></Dialog></Portal>
 
       <Portal><Dialog visible={cancelOpen} onDismiss={() => setCancelOpen(false)} style={styles.dialog}><Dialog.Title>Delete this pending chitti?</Dialog.Title><Dialog.Content style={styles.section}>
         <Text>This removes it from everyone’s dashboard and revokes all pending invitation links. Active and completed chittis cannot be deleted.</Text>
@@ -603,6 +606,11 @@ export default function ChittiDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  memberDialog: { marginVertical: 24 },
+  memberDialogFixed: { flexShrink: 0 },
+  memberScrollArea: { minHeight: 0, flexShrink: 1, paddingHorizontal: 0 },
+  memberScrollView: { minHeight: 0, flexShrink: 1 },
+  memberDialogActions: { flexShrink: 0, flexWrap: 'wrap', rowGap: 8 },
   hero: { gap: 9 }, section: { gap: 14 }, heading: { fontWeight: '700' }, amount: { fontWeight: '800', color: '#111111' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   iconTitle: { flexDirection: 'row', alignItems: 'center', gap: 10 }, recipient: { flexDirection: 'row', alignItems: 'center', gap: 12 }, grow: { flex: 1 },
