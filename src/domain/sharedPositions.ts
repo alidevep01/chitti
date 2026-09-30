@@ -12,14 +12,14 @@ export function sharedPositionSources(chitti: Chitti): SharedPositionSource[] {
   if (!pendingImport && chitti.status !== 'active') return [];
   const invitations = chitti.invitations ?? [];
   const owners = [
-    ...chitti.members.map((member) => ({ kind: 'member' as const, id: member.id, name: member.name, payoutPosition: member.payoutPosition, amount: member.contributionAmountPaise ?? Math.floor(chitti.monthlyAmountPaise * (member.contributionShareBps ?? 10000) / 10000) })),
+    ...chitti.members.map((member) => ({ kind: 'member' as const, id: member.id, name: member.name, email: member.email, payoutPosition: member.payoutPosition, amount: member.contributionAmountPaise ?? Math.floor(chitti.monthlyAmountPaise * (member.contributionShareBps ?? 10000) / 10000) })),
     ...(pendingImport ? invitations.filter((invite) => invite.status === 'pending' && !invite.coOwnerShareBps)
-      .map((invite) => ({ kind: 'invitation' as const, id: invite.id, name: invite.name, payoutPosition: invite.payoutPosition, amount: chitti.monthlyAmountPaise })) : []),
+      .map((invite) => ({ kind: 'invitation' as const, id: invite.id, name: invite.name, email: invite.email, payoutPosition: invite.payoutPosition, amount: chitti.monthlyAmountPaise })) : []),
   ];
   return owners.flatMap((owner) => {
     if (!owner.payoutPosition || (!pendingImport && !chitti.rounds.some((round) => round.number === owner.payoutPosition && round.status !== 'completed' && round.payoutStatus !== 'paid'))) return [];
     const reserved = invitations.filter((invite) => owner.kind === 'member'
-      ? invite.status === 'pending' && invite.coOwnerSourceMemberId === owner.id
+      ? invite.status === 'pending' && (invite.coOwnerSourceMemberId === owner.id || invitations.some((parent) => parent.id === invite.coOwnerSourceInvitationId && parent.status === 'accepted' && parent.email.toLowerCase() === owner.email.toLowerCase()))
       : ['pending', 'accepted'].includes(invite.status) && invite.coOwnerSourceInvitationId === owner.id)
       .reduce((sum, invite) => sum + (invite.coOwnerAmountPaise ?? Math.floor(chitti.monthlyAmountPaise * (invite.coOwnerShareBps ?? 0) / 10000)), 0);
     const availableAmountPaise = owner.amount - reserved;

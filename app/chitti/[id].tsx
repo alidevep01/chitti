@@ -12,6 +12,8 @@ import { Screen } from '@/components/Screen';
 import { StatusPill } from '@/components/StatusPill';
 import { UserAvatar } from '@/components/UserAvatar';
 import { RankingList } from '@/components/RankingList';
+import { CombineMembersDialog } from '@/components/CombineMembersDialog';
+import { combineCandidates, movableCombineCandidates } from '@/domain/combinePositions';
 import { moveRankingItem, rankingChanged, rankingSaveError } from '@/domain/ranking';
 import { importedMemberError, importedMemberPositions } from '@/domain/importedMembers';
 import { manualRankingEntries, parseShareAmount, sharedPositionError, sharedPositionSources } from '@/domain/sharedPositions';
@@ -31,6 +33,8 @@ export default function ChittiDetailScreen() {
   const { chittis, currentUser, inviteLinks, regenerateInvitation, updateInvitation, addMemberInvitation, addImportedMemberInvitation, addCoOwnerInvitation, convertPendingChittiToExisting, cancelChitti, swapPayoutMonths, scheduleShuffle, submitContribution, getPaymentProofUrl, reviewContribution, confirmPayout, confirmPayoutShare, confirmPayoutAdjustment, demoMode } = useApp();
   const chitti = chittis.find((item) => item.id === id);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [combineOpen, setCombineOpen] = useState(false);
+  const { combineExistingMembers } = useApp();
   const [paymentRoundId, setPaymentRoundId] = useState<string>();
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [editInvitationId, setEditInvitationId] = useState<string>();
@@ -536,9 +540,11 @@ export default function ChittiDetailScreen() {
             </View>
           </View>;
         })}
+        {currentUser.role === 'admin' && movableCombineCandidates(chitti).some((move) => move.payoutPosition !== 1 && combineCandidates(chitti).some((keep) => keep.payoutPosition !== move.payoutPosition)) ? <Button icon="account-multiple" mode="outlined" onPress={() => setCombineOpen(true)}>Combine existing members</Button> : null}
         {currentUser.role === 'admin' && chitti.invitations?.some((invite) => invite.status === 'pending') ? <Text variant="bodySmall">Regenerating an invitation link invalidates the previous link.</Text> : null}
       </Card.Content></Card>
 
+      {combineOpen ? <CombineMembersDialog chitti={chitti} onDismiss={() => setCombineOpen(false)} onConfirm={async (keep, move, amount) => { await combineExistingMembers(chitti.id, keep, move, amount); setExistingConversionEnabled(false); setMessage('Members combined. The chitti is one month shorter.'); }} /> : null}
       {canCancelChitti ? <Card mode="outlined"><Card.Content style={styles.section}>
         <Text variant="titleLarge" style={styles.heading}>Pending chitti controls</Text>
         <Text>This chitti has not started, so the administrator can delete it. Pending invitations will stop working, it will disappear from dashboards, and a cancelled audit record will remain for safety.</Text>

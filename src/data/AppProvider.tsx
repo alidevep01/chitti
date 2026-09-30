@@ -7,6 +7,7 @@ import { Platform } from 'react-native';
 import { assignPayoutPositions, buildRounds, refreshRound } from '@/domain/rules';
 import { importedMemberPositions } from '@/domain/importedMembers';
 import { manualRankingEntries, sharedPositionSources } from '@/domain/sharedPositions';
+import { combineCandidates, combinePositions } from '@/domain/combinePositions';
 import type {
   AppNotification,
   Chitti,
@@ -50,6 +51,7 @@ type AppContextValue = {
   addCoOwnerInvitation: (chittiId: string, source: ManualPayoutOrderItem, amountPaise: number, member: InviteDraft) => Promise<{ invitationId: string; token: string; payoutPosition: number; amountPaise: number }>;
   convertPendingChittiToExisting: (chittiId: string, completedMonths: number, order: ManualPayoutOrderItem[]) => Promise<void>;
   cancelChitti: (chittiId: string) => Promise<void>;
+  combineExistingMembers: (chittiId: string, keepKey: string, moveKey: string, amountPaise: number) => Promise<void>;
   swapPayoutMonths: (chittiId: string, firstMemberId: string, secondMemberId: string) => Promise<void>;
   scheduleShuffle: (chittiId: string) => Promise<void>;
   runShuffle: (chittiId: string) => Promise<void>;
@@ -450,6 +452,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { invitationId, token, payoutPosition: source.payoutPosition, amountPaise };
   };
 
+  const combineExistingMembers = async (chittiId: string, keepKey: string, moveKey: string, amountPaise: number) => {
+    const chitti = state.chittis.find((item) => item.id === chittiId);
+    if (!chitti || state.users.find((user) => user.id === state.userId)?.role !== 'admin') throw new Error('Administrator access required');
+    const next = combinePositions(chitti, keepKey, moveKey, amountPaise);
+    if (!env.isDemo) {
+      const candidates = combineCandidates(chitti);
+      const keep = candidates.find((item) => item.key === keepKey)!;
+      const move = candidates.find((item) => item.key === moveKey)!;
+      const { error } = await supabase!.rpc('combine_existing_members', {
+        p_chitti_id: chittiId, p_keep_kind: keep.kind, p_keep_id: keep.id,
+        p_move_kind: move.kind, p_move_id: move.id, p_move_amount_paise: amountPaise,
+        p_expected_count: chitti.memberCount, p_keep_position: keep.payoutPosition, p_move_position: move.payoutPosition,
+      });
+      if (error) throw error;
+      await reload();
+      return;
+    }
+    const everyoneJoined = !next.invitations?.some((i) => i.status === 'pending')
+      && new Set(next.members.map((m) => m.payoutPosition)).size === next.memberCount;
+    await persist(updateChitti(state, chittiId, () => everyoneJoined
+      ? { ...next, status: 'active', rounds: buildRounds(next.members.filter((m, index, all) => all.findIndex((other) => other.payoutPosition === m.payoutPosition) === index), next.firstDueDate, next.startDate).map((round) => ({
+        ...round, contributions: next.members.map((m) => ({ id: `${round.id}-${m.id}`, memberId: m.id, amountPaise: m.contributionAmountPaise ?? next.monthlyAmountPaise, status: 'due' as const })),
+        payoutShares: next.members.filter((m) => m.payoutPosition === round.number).map((m) => ({ id: `${round.id}-share-${m.id}`, recipientMemberId: m.id, amountPaise: (m.contributionAmountPaise ?? next.monthlyAmountPaise) * next.memberCount, shareBps: m.contributionShareBps ?? 10000, status: 'blocked' as const })),
+      })) } : next));
+  };
+
   const convertPendingChittiToExisting = async (chittiId: string, completedMonths: number, order: ManualPayoutOrderItem[]) => {
     if (!env.isDemo) {
       const { error } = await supabase!.rpc('convert_pending_chitti_to_existing', {
@@ -746,7 +774,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ? state.users.filter((user) => user.id !== state.userId).map((user) => ({ ...user, timesInvited: 1, lastInvitedAt: new Date().toISOString() }))
       : savedContacts,
     signInDemo, signInGoogle, signOut, switchDemoUser, createChitti, importExistingChitti, redeemInvitation, regenerateInvitation, updateInvitation, addMemberInvitation,
-    addImportedMemberInvitation, addCoOwnerInvitation, convertPendingChittiToExisting, cancelChitti,
+    addImportedMemberInvitation, addCoOwnerInvitation, combineExistingMembers, convertPendingChittiToExisting, cancelChitti,
     swapPayoutMonths, scheduleShuffle, runShuffle, voteShuffle, simulateApprovals, submitContribution, getPaymentProofUrl, reviewContribution,
     confirmPayout, confirmPayoutShare, confirmPayoutAdjustment, markNotificationRead,
     markAllNotificationsRead, updateProfile, reload,

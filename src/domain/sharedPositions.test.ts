@@ -65,4 +65,11 @@ describe('shared position form and ranking', () => {
     const sources = sharedPositionSources({ ...chitti, invitations: [...chitti.invitations!, { ...child, coOwnerAmountPaise: 500000 }] });
     expect(sources.find((source) => source.id === 'main')?.availableAmountPaise).toBe(1500000);
   });
+  it('keeps pending reservations after the main-owner invitation is accepted', () => {
+    const input: Chitti = { ...chitti, invitations: [
+      { ...chitti.invitations![0]!, email: 'owner@test.com', status: 'accepted', payoutPosition: 2 },
+      { ...child, payoutPosition: 2, coOwnerAmountPaise: 500000 },
+    ] };
+    expect(sharedPositionSources(input).find((p) => p.key === 'member:owner')?.availableAmountPaise).toBe(1500000);
+  });
 });

@@ -122,6 +122,28 @@ Before real use, additionally run the migration against a disposable Supabase pr
 
 ## Deployment
 
+### Combining existing members
+
+Administrators can use **Members → Combine existing members** in a pending existing
+chitti with no completed months or generated payment rounds. Select an owner in a
+full or already shared position, then a person with a separate full position, and
+enter the moving person's monthly amount. It comes from the selected owner's
+available amount; other co-owners' amounts are unchanged. Repeat to combine more
+people into the same position: there is no fixed co-owner headcount limit.
+Joined members and pending invitations are
+supported, and invitation IDs/links remain valid. The freed position is removed,
+later rankings move up, the monthly pot decreases, and the schedule becomes one
+month shorter. At least two positions must remain; the administrator stays first.
+Combining can activate the chitti if every remaining position is filled and all
+invitations have been accepted. Active/historical chittis cannot be combined.
+
+This requires migrations through `202609280002_combine_into_shared_positions.sql`
+(including `202609280001_combine_existing_members.sql`). Test against the local
+Supabase stack (`npx supabase migration up --local`, then `npm run test:db`) before
+applying pending migrations to the linked production project and deploying the web
+build. The new regression suite covers joined/invited combinations and separate
+payouts. Never reset the production database for this feature.
+
 For a free Expo-hosted web preview:
 
 ```bash
