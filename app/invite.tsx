@@ -29,7 +29,7 @@ export default function InviteScreen() {
   };
 
   return (
-    <Screen title="Private invitation" back={Boolean(currentUser)}>
+    <Screen title="Private invitation" back>
       <View style={styles.wrap}>
         <Card mode="elevated" style={styles.card}><Card.Content style={styles.content}>
           <View style={[styles.icon, { backgroundColor: theme.colors.primaryContainer }]}><Icon source="email-lock-outline" size={42} color={theme.colors.primary} /></View>

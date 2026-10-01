@@ -69,7 +69,7 @@ export default function ChittiDetailScreen() {
   const paymentAmountPaise = paymentContribution?.amountPaise ?? chitti?.monthlyAmountPaise ?? 0;
   const upiUri = chitti ? `upi://pay?pa=${encodeURIComponent(chitti.upiId)}&pn=${encodeURIComponent(chitti.payeeName)}&am=${(paymentAmountPaise / 100).toFixed(2)}&cu=INR&tn=${encodeURIComponent(`${chitti.name} month ${paymentRound?.number ?? ''}`)}` : '';
 
-  if (!chitti || !currentUser) return <Screen title="Chitti" back><EmptyState icon="alert-circle-outline" title="Chitti not found" message="This chitti is unavailable or you no longer have access." /></Screen>;
+  if (!chitti || !currentUser) return <Screen title="Chitti" titleHomeLink back><EmptyState icon="alert-circle-outline" title="Chitti not found" message="This chitti is unavailable or you no longer have access." /></Screen>;
   const confirmed = currentRound?.confirmedCount ?? currentRound?.contributions.filter((item) => item.status === 'confirmed').length ?? 0;
   const completed = chitti.rounds.filter((round) => round.status === 'completed').length;
   const catchUpRounds = chitti.rounds.filter((round) => round.adjustments?.some((item) => item.sourceMemberId === currentUser.id && item.status !== 'paid'));
@@ -361,7 +361,8 @@ export default function ChittiDetailScreen() {
   };
 
   return (
-    <Screen title={chitti.name} back action={<Button onPress={() => router.push('/dashboard')}>Home</Button>}>
+    <Screen title="Chitti" titleHomeLink back>
+      <Text variant="headlineSmall" style={styles.heading}>{chitti.name}</Text>
       <Card mode="contained" style={{ backgroundColor: theme.colors.primaryContainer }}><Card.Content style={styles.hero}>
         <View style={styles.rowBetween}><StatusPill status={chitti.status} /><Text variant="labelLarge">{chitti.memberCount} months</Text></View>
         <Text variant="headlineMedium" style={styles.amount}>{formatINR(chitti.monthlyAmountPaise * chitti.memberCount)}</Text>

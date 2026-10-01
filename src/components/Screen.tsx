@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Appbar, Badge, Text, useTheme } from 'react-native-paper';
+import { Appbar, Badge, Button, Text, useTheme } from 'react-native-paper';
 import { router, type Href } from 'expo-router';
 
 import { useApp } from '@/data/AppProvider';
@@ -21,7 +21,10 @@ export function Screen({ title, children, back = false, backHref, scroll = true,
   const theme = useTheme();
   const { currentUser, notifications, demoMode } = useApp();
   const unread = notifications.filter((item) => !item.read).length;
-  const content = <View style={styles.content}>{children}</View>;
+  const content = <View style={styles.content}>
+    {!titleHomeLink && title !== 'Chitti' ? <Text accessibilityRole="header" variant="headlineSmall" style={styles.title}>{title}</Text> : null}
+    {children}
+  </View>;
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace(backHref ?? (currentUser ? '/dashboard' : '/sign-in'));
@@ -30,17 +33,14 @@ export function Screen({ title, children, back = false, backHref, scroll = true,
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <Appbar.Header elevated={false} style={styles.header}>
-        {back ? <Appbar.BackAction color={brandColors.black} accessibilityLabel="Go back" onPress={goBack} /> : null}
-        {titleHomeLink ? (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel="Go to Chitti home"
-            onPress={() => router.replace('/dashboard')}
-            style={({ pressed }) => [styles.homeTitle, pressed && styles.titlePressed]}
-          >
-            <Text variant="titleLarge" style={[styles.title, styles.headerTitle]}>{title}</Text>
-          </Pressable>
-        ) : <Appbar.Content title={title} titleStyle={[styles.title, styles.headerTitle]} />}
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Go to Chitti home"
+          onPress={() => router.replace(currentUser ? '/dashboard' : '/sign-in')}
+          style={({ pressed }) => [styles.homeTitle, pressed && styles.titlePressed]}
+        >
+          <Text variant="titleLarge" style={[styles.title, styles.headerTitle]}>Chitti</Text>
+        </Pressable>
         {action}
         {currentUser ? (
           <View>
@@ -60,6 +60,9 @@ export function Screen({ title, children, back = false, backHref, scroll = true,
           </Pressable>
         ) : null}
       </Appbar.Header>
+      {back ? <View style={styles.backBar}>
+        <Button icon="arrow-left" mode="text" textColor={brandColors.black} accessibilityLabel="Go back" onPress={goBack} contentStyle={styles.backButton}>Back</Button>
+      </View> : null}
       {demoMode && currentUser ? (
         <View style={styles.demoBanner}><Text variant="labelMedium">Demo mode · Sample data only</Text></View>
       ) : null}
@@ -70,9 +73,11 @@ export function Screen({ title, children, back = false, backHref, scroll = true,
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { backgroundColor: brandColors.lightGold, borderBottomWidth: 1, borderBottomColor: brandColors.gold },
+  header: { backgroundColor: brandColors.lightGold, borderBottomWidth: 1, borderBottomColor: brandColors.gold, position: 'sticky' as unknown as 'relative', top: 0, zIndex: 10 },
   content: { width: '100%', maxWidth: 960, alignSelf: 'center', padding: 20, gap: 16 },
   scroll: { paddingBottom: 48 },
+  backBar: { alignItems: 'flex-start', paddingHorizontal: 12, paddingVertical: 4 },
+  backButton: { minHeight: 44 },
   title: { fontWeight: '700' },
   headerTitle: { color: brandColors.black },
   homeTitle: { flex: 1, minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
